@@ -50,6 +50,27 @@ LABEL_SYNONYMS: Dict[str, List[str]] = {
     "cat": ["cat"],
     "dog": ["dog"],
     "umbrella": ["umbrella"],
+    "phone": ["cell phone", "phone"],
+    "mobile": ["cell phone", "phone"],
+    "cellphone": ["cell phone", "phone"],
+    "laptop": ["laptop", "computer"],
+    "computer": ["computer", "laptop"],
+    "screen": ["screen", "monitor"],
+    "monitor": ["monitor", "screen"],
+    "keyboard": ["keyboard"],
+    "mouse": ["mouse"],
+    "chair": ["chair"],
+    "table": ["table", "desk"],
+    "desk": ["desk", "table"],
+    "bottle": ["bottle"],
+    "cup": ["cup", "mug"],
+    "mug": ["mug", "cup"],
+    "book": ["book"],
+    "door": ["door"],
+    "window": ["window"],
+    "clock": ["clock"],
+    "fan": ["fan"],
+    "light": ["light"]
 }
 
 

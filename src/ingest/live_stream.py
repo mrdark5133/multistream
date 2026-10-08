@@ -35,7 +35,7 @@ class LiveStreamWorker:
         snapshots_dir: str | Path = "index_base/snapshots",
         recorded_dir: str | Path = "footage/recorded",
         stride: int = 5,
-        conf_thresh: float = 0.25,
+        conf_thresh: float = 0.15,
         imgsz: int = 640
     ):
         self.stream_url = stream_url
@@ -53,6 +53,8 @@ class LiveStreamWorker:
         self.is_running = False
         self.thread: Optional[threading.Thread] = None
         self.latest_jpeg: Optional[bytes] = None
+        self._fallback_counter = 0
+        self._active_fallback_boxes: Dict[int, Any] = {}
 
         # Stats
         self.stats = {
@@ -89,6 +91,29 @@ class LiveStreamWorker:
             self.thread.join(timeout=3.0)
         self.stats["status"] = "stopped"
         logger.info(f"[LIVE] Stopped live stream worker for camera '{self.camera_name}'")
+
+    def _assign_fallback_id(self, box_xyxy) -> int:
+        """Assign or maintain spatial fallback track ID when ByteTrack yields no ID."""
+        best_id = None
+        best_iou = 0.25
+        for trk_id, prev_box in list(self._active_fallback_boxes.items()):
+            ix1 = max(box_xyxy[0], prev_box[0])
+            iy1 = max(box_xyxy[1], prev_box[1])
+            ix2 = min(box_xyxy[2], prev_box[2])
+            iy2 = min(box_xyxy[3], prev_box[3])
+            inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+            area1 = (box_xyxy[2] - box_xyxy[0]) * (box_xyxy[3] - box_xyxy[1])
+            area2 = (prev_box[2] - prev_box[0]) * (prev_box[3] - prev_box[1])
+            union = area1 + area2 - inter
+            iou = inter / union if union > 0 else 0
+            if iou > best_iou:
+                best_iou = iou
+                best_id = trk_id
+        if best_id is None:
+            self._fallback_counter += 1
+            best_id = self._fallback_counter
+        self._active_fallback_boxes[best_id] = box_xyxy
+        return best_id
 
     def _run_loop(self):
         self.stats["status"] = "connecting"
@@ -181,23 +206,27 @@ class LiveStreamWorker:
                 curr_iso = curr_dt.isoformat()
 
                 if frame_count % self.stride == 0:
-                    # Run YOLO tracking
+                    # Run YOLO tracking with bytetrack
                     results = self.yolo.track(
                         frame,
                         persist=True,
+                        tracker="bytetrack.yaml",
                         conf=self.conf_thresh,
                         imgsz=self.imgsz,
-                        classes=list(range(len(self.classes))),
                         verbose=False
                     )
 
                     new_boxes = []
-                    if results and len(results) > 0 and results[0].boxes is not None and results[0].boxes.id is not None:
+                    if results and len(results) > 0 and results[0].boxes is not None and len(results[0].boxes) > 0:
                         boxes = results[0].boxes
                         cls_ids = boxes.cls.cpu().numpy().astype(int)
                         confs = boxes.conf.cpu().numpy().astype(float)
                         xyxy = boxes.xyxy.cpu().numpy().astype(int)
-                        track_ids = boxes.id.cpu().numpy().astype(int)
+
+                        if boxes.id is not None:
+                            track_ids = boxes.id.cpu().numpy().astype(int)
+                        else:
+                            track_ids = [self._assign_fallback_id(xyxy[i]) for i in range(len(boxes))]
 
                         for cls_id, conf, box_px, trk_id in zip(cls_ids, confs, xyxy, track_ids):
                             label = self.classes[cls_id] if cls_id < len(self.classes) else "object"

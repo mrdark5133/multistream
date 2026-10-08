@@ -73,3 +73,25 @@ classes:
   # Animals
   - dog
   - cat
+
+  # Everyday & Indoor Objects
+  - cell phone
+  - phone
+  - laptop
+  - computer
+  - monitor
+  - screen
+  - keyboard
+  - mouse
+  - chair
+  - table
+  - desk
+  - cup
+  - bottle
+  - mug
+  - book
+  - door
+  - window
+  - clock
+  - fan
+  - light
