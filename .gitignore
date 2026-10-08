@@ -13,7 +13,8 @@ __pycache__/
 .pytest_cache/
 
 # Large Files & Video Assets (Do NOT commit)
-footage/
+footage/*
+!footage/crops_contact_sheet.jpg
 live_footage/
 *.mp4
 *.avi

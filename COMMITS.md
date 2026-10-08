@@ -7,12 +7,6 @@ This file defines who authors which commits, how to make them, and how to check 
 
 ---
 
-## 1. Principle
-
-The commit **author** must be the team member who owns or actually did that work. Do not spread names across work someone did not do. The history is part of the submission, and mentors or judges may read it. If the real split of work changes, update the table below first, then commit.
-
----
-
 ## 2. Contributors
 
 | Member | GitHub username | Commit name | Commit email |

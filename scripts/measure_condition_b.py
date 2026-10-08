@@ -1,6 +1,10 @@
 """
-Phase 0 Fix-up Task 2: Clean measurement of Condition (b)
-5 nvidia-smi readings 2s apart + torch.cuda.mem_get_info() + process breakdown
+Phase 0 Fix-up Task 1: Condition (b) Measurement
+- 5 consecutive nvidia-smi readings (2s apart)
+- 5-sample average used directly in gap analysis (no 6th query)
+- Raw nvidia-smi process list
+- Direct measurement: allocate torch tensors in 100 MB steps until failure
+- Report allocatable MB vs nvidia-smi free MB
 """
 import time
 import subprocess
@@ -16,12 +20,16 @@ def get_smi_line():
         return tot, used, free
     return None, None, None
 
-def main():
-    print("=" * 60)
-    print("PHASE 0 TASK 2: Clean Condition (b) VRAM Measurements")
-    print("=" * 60)
+def get_raw_nvidia_smi():
+    res = subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return res.stdout
 
-    print("\n1. 5 Consecutive nvidia-smi readings (2 seconds apart):")
+def main():
+    print("=" * 70)
+    print("CONDITION (B) MEASUREMENT & GAP ANALYSIS")
+    print("=" * 70)
+
+    print("\n1. 5 Consecutive nvidia-smi Readings (2s interval):")
     readings = []
     for i in range(1, 6):
         tot, used, free = get_smi_line()
@@ -30,9 +38,10 @@ def main():
         if i < 5:
             time.sleep(2)
 
+    avg_tot = sum(r[0] for r in readings) / len(readings)
     avg_used = sum(r[1] for r in readings) / len(readings)
     avg_free = sum(r[2] for r in readings) / len(readings)
-    print(f"\n   Average over 5 readings: Used={avg_used:.1f} MiB | Free={avg_free:.1f} MiB")
+    print(f"\n   5-Sample Average: Total={avg_tot:.1f} MiB | Used={avg_used:.1f} MiB | Free={avg_free:.1f} MiB")
 
     print("\n2. PyTorch CUDA Memory Query (torch.cuda.mem_get_info):")
     if torch.cuda.is_available():
@@ -47,26 +56,49 @@ def main():
         print(f"   torch.cuda.memory_allocated : {allocated_mb:.2f} MB")
         print(f"   torch.cuda.memory_reserved  : {reserved_mb:.2f} MB")
 
-        # Explain the gap
-        tot_smi, used_smi, free_smi = get_smi_line()
-        print("\n3. Gap Analysis Between nvidia-smi and PyTorch:")
-        print(f"   nvidia-smi reports physical GPU memory: Total={tot_smi:.1f} MiB, Used={used_smi:.1f} MiB, Free={free_smi:.1f} MiB")
-        print(f"   torch.cuda.mem_get_info() reports: Free={free_mb:.1f} MB, Total={total_mb:.1f} MB")
-        gap = free_mb - free_smi
+        print("\n3. Gap Analysis (5-sample average vs PyTorch query):")
+        print(f"   nvidia-smi 5-sample avg: Total={avg_tot:.1f} MiB, Used={avg_used:.1f} MiB, Free={avg_free:.1f} MiB")
+        print(f"   torch.cuda.mem_get_info : Free={free_mb:.1f} MB, Total={total_mb:.1f} MB")
+        gap = free_mb - avg_free
         print(f"   Discrepancy (PyTorch free - nvidia-smi free): {gap:+.1f} MB")
-        print("   Explanation:")
-        print("   On Windows (WDDM 3.x driver model), nvidia-smi reports dedicated on-board VRAM used by all desktop processes.")
-        print("   In contrast, cudaMemGetInfo on WDDM reports the memory budget available to the current DirectX/CUDA process,")
-        print("   which accounts for dynamic OS paging/virtual memory overcommit buffers managed by the Windows GPU scheduler.")
+
+        print("\n4. Tensor Allocation Measurement (100 MB steps until failure):")
+        tensors = []
+        step_mb = 100
+        step_bytes = step_mb * 1024 * 1024
+        elements_per_step = step_bytes // 4 # float32
+        allocatable_mb = 0
+
+        try:
+            while True:
+                # Allocate 100 MB tensor on cuda:0
+                t = torch.empty(elements_per_step, dtype=torch.float32, device="cuda:0")
+                tensors.append(t)
+                allocatable_mb += step_mb
+                if allocatable_mb % 500 == 0:
+                    tot_cur, used_cur, free_cur = get_smi_line()
+                    print(f"   Allocated {allocatable_mb} MB | nvidia-smi: Used={used_cur:.1f} MiB, Free={free_cur:.1f} MiB")
+        except torch.cuda.OutOfMemoryError as e:
+            print(f"   Allocation halted due to OutOfMemoryError at step {allocatable_mb + step_mb} MB.")
+        except Exception as e:
+            print(f"   Allocation stopped with exception: {e}")
+
+        print(f"\n   Total Successfully Allocatable: {allocatable_mb} MB")
+        print(f"   Comparison: Allocatable = {allocatable_mb} MB vs nvidia-smi 5-sample Free = {avg_free:.1f} MiB")
+        if allocatable_mb > avg_free:
+            print(f"   Result: PyTorch successfully allocated {allocatable_mb - avg_free:.1f} MB MORE than physical nvidia-smi free VRAM.")
+            print("   Explanation: Under Windows WDDM, the OS kernel virtualizes and overcommits VRAM, paging excess buffers to host RAM/pagefile rather than failing at the physical VRAM boundary.")
+        else:
+            print(f"   Result: PyTorch allocated {allocatable_mb} MB before OOM.")
+
+        # Clean up tensors
+        del tensors
+        torch.cuda.empty_cache()
     else:
         print("   CUDA not available in PyTorch.")
 
-    print("\n4. Active GPU Processes (from nvidia-smi):")
-    res = subprocess.run(
-        ["nvidia-smi", "--query-compute-apps=pid,process_name,used_memory", "--format=csv"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
-    print(res.stdout.strip())
+    print("\n5. Raw nvidia-smi Output and Process List:")
+    print(get_raw_nvidia_smi())
 
 if __name__ == "__main__":
     main()
