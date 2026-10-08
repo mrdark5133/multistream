@@ -15,7 +15,9 @@ def main():
     parser.add_argument("--footage-dir", type=str, default="footage", help="Directory of videos to ingest")
     parser.add_argument("--index-dir", type=str, default="index_base", help="Index storage directory")
     parser.add_argument("--embedder", type=str, default="google/siglip-base-patch16-224", help="SigLIP model ID")
-    parser.add_argument("--stride", type=int, default=5, help="Detection frame sampling stride")
+    parser.add_argument("--stride", type=int, default=2, help="Detection frame sampling stride")
+    parser.add_argument("--tracker", type=str, default="bytetrack_tuned", choices=["bytetrack_tuned", "botsort", "bytetrack"], help="Tracker backend")
+    parser.add_argument("--legacy", action="store_true", help="Use legacy YOLO-World alone detector")
     parser.add_argument("--conf", type=float, default=0.25, help="YOLO confidence threshold")
     parser.add_argument("--imgsz", type=int, default=640, help="YOLO inference image size")
     parser.add_argument("--frame-interval", type=float, default=2.0, help="Whole-frame sampling interval in seconds")
@@ -30,10 +32,12 @@ def main():
     snapshots_dir = index_dir / "snapshots"
 
     print("=" * 80)
-    print(f"MULTIStream Ingestion Pipeline")
+    print(f"MULTIStream Ingestion Pipeline (Phase 1b)")
     print(f"Index DB:      {db_path}")
     print(f"Snapshots:     {snapshots_dir}")
     print(f"Embedder:      {args.embedder}")
+    print(f"Detector:      {'Legacy YOLO-World' if args.legacy else 'Hybrid YOLO11 COCO + YOLO-World'}")
+    print(f"Tracker:       {args.tracker}")
     print(f"Stride:        {args.stride}")
     print(f"Imgsz:         {args.imgsz}")
     print("=" * 80)
@@ -41,7 +45,8 @@ def main():
     pipeline = IngestPipeline(
         db_path=db_path,
         snapshots_dir=snapshots_dir,
-        embedder_name=args.embedder
+        embedder_name=args.embedder,
+        use_hybrid_detector=not args.legacy
     )
 
     videos = []
@@ -74,6 +79,7 @@ def main():
             conf_thresh=args.conf,
             imgsz=args.imgsz,
             frame_sample_interval_s=args.frame_interval,
+            tracker_name=args.tracker,
             force=args.force
         )
         results.append(res)

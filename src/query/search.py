@@ -163,8 +163,19 @@ class SearchEngine:
         # 1. Embed query visual prompt
         query_emb = self.embedder.embed_text([parsed.object_prompt])[0]
         
-        # 2. Query tracks table
-        track_sql = "SELECT id, video, camera, track_id, label, t_start, t_end, t_best, offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb FROM tracks WHERE 1=1"
+        # 2. Query tracks table dynamically supporting new Phase 1b schema columns
+        track_cols = {c[1] for c in self.conn.execute("PRAGMA table_info(tracks);").fetchall()}
+        cols_to_select = ["id", "video", "camera", "track_id", "label", "t_start", "t_end", "t_best",
+                          "offset_start", "offset_end", "offset_best", "bbox_px", "bbox_norm", "snapshot", "emb"]
+        if "colors" in track_cols:
+            cols_to_select.append("colors")
+        if "quality" in track_cols:
+            cols_to_select.append("quality")
+        if "hits" in track_cols:
+            cols_to_select.append("hits")
+        if "group" in track_cols:
+            cols_to_select.append('"group"')
+        track_sql = f"SELECT {', '.join(cols_to_select)} FROM tracks WHERE 1=1"
         params: List[Any] = []
 
         if target_camera:
@@ -200,12 +211,31 @@ class SearchEngine:
             track_emb = blob_to_emb(row["emb"])
             score = float(np.dot(query_emb, track_emb))
 
-            # Color attribute extraction & query matching
+            # Color attribute extraction & soft boost w=0.03 matching
             det_color = "unknown"
+            track_colors_list: List[str] = []
+            
+            # Check new colors JSON column first
+            if "colors" in row.keys() and row["colors"]:
+                try:
+                    cdata = json.loads(row["colors"])
+                    for part, clist in cdata.items():
+                        if isinstance(clist, list):
+                            for item in clist:
+                                cname = item.get("color", "")
+                                if cname and cname != "unknown":
+                                    track_colors_list.append(cname.lower())
+                    if track_colors_list:
+                        det_color = track_colors_list[0]
+                except Exception:
+                    pass
+
             snap_p = Path(row["snapshot"])
             if not snap_p.exists():
                 snap_p = self.db_path.parent / row["snapshot"]
-            if snap_p.exists() and bbox_norm:
+
+            # Fallback to legacy extraction if no colors column in DB
+            if not track_colors_list and snap_p.exists() and bbox_norm:
                 img = cv2.imread(str(snap_p))
                 if img is not None:
                     h, w = img.shape[:2]
@@ -214,13 +244,19 @@ class SearchEngine:
                     crop = img[by1:by2, bx1:bx2]
                     if crop.size > 0:
                         det_color, _ = extract_dominant_color(crop)
+                        if det_color != "unknown":
+                            track_colors_list.append(det_color.lower())
 
-            # Check if query specified a color
-            color_match = match_color_query(query_text, det_color)
-            if color_match is True:
-                score += 0.08  # strong boost for exact color match
-            elif color_match is False:
-                score -= 0.05  # penalize mismatching color
+            # Check if query specified a color for soft boost (w=0.03)
+            query_words = set(query_text.lower().split())
+            standard_colors = {"red", "blue", "green", "yellow", "black", "white", "silver", "grey", "orange", "brown", "purple", "pink"}
+            matched_query_colors = query_words.intersection(standard_colors)
+
+            if matched_query_colors:
+                if any(qc in track_colors_list for qc in matched_query_colors):
+                    score += 0.03  # soft boost w=0.03
+                elif track_colors_list:
+                    score -= 0.02  # soft mismatch penalty
 
             if similarity_threshold is None or score >= similarity_threshold:
                 bbox_px = json.loads(row["bbox_px"]) if row["bbox_px"] else None

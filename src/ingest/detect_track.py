@@ -37,6 +37,10 @@ class TrackSummary:
     bbox_norm: List[float]
     best_crop: np.ndarray
     best_snapshot_bgr: np.ndarray
+    group: str = "object"
+    colors: str = "{}"
+    quality: float = 0.0
+    hits: int = 1
 
 
 @dataclass
@@ -313,3 +317,247 @@ def process_video_tracks(
     # Reset tracker after processing video
     reset_tracker(yolo_model)
     return summaries, sampled_frames
+
+
+def process_video_tracks_phase1b(
+    video_path: str | Path,
+    detector: Any,
+    start_time_iso: str,
+    fps: float,
+    duration_s: float,
+    stride: int = 2,
+    tracker_name: str = "bytetrack_tuned",
+    imgsz: int = 640,
+    rotation: int = 0,
+    frame_sample_interval_s: float = 2.0,
+    min_duration_s: float = 1.0,
+    min_hits: int = 4,
+    min_mean_conf: float = 0.35,
+    embedder: Any = None
+) -> Tuple[List[TrackSummary], List[SampledFrame], Dict[str, int], List[Dict[str, Any]]]:
+    """
+    Phase 1b Ingest Pipeline:
+    - Hybrid Detector (COCO YOLO11 for KEEP classes + YOLO-World for non-COCO)
+    - Tuned ByteTrack (or BoT-SORT) with lowered stride (2-3)
+    - TrackState with class voting and quality-based best frame selection (conf * size * sharpness)
+    - Pad-to-square crops preserving aspect ratio
+    - Strict track filtering (min_duration 1.0s, min_hits 4, min_mean_conf 0.35)
+    - Track stitching (gap 0-2s, center dist < 0.25, cosine >= 0.80)
+    - CIE-Lab K-Means colors JSON column
+    """
+    import json
+    from src.ingest.detector import get_object_group
+    from src.ingest.track_engine import (
+        TrackState,
+        TrackObservation as EngineTrackObs,
+        compute_crop_quality,
+        pad_to_square,
+        create_tracker,
+        run_tracker_on_detections,
+        filter_tracks,
+        stitch_tracks
+    )
+    from src.utils.lab_color import extract_track_colors
+
+    tracker = create_tracker(tracker_name)
+
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise RuntimeError(f"Failed to open video file: {video_path}")
+
+    try:
+        base_dt = datetime.datetime.fromisoformat(start_time_iso)
+    except Exception:
+        base_dt = datetime.datetime.now()
+
+    actual_fps = cap.get(cv2.CAP_PROP_FPS) or fps or 30.0
+
+    raw_tracks: Dict[int, TrackState] = {}
+    sampled_frames: List[SampledFrame] = []
+
+    frame_idx = 0
+    last_frame_sample_time = -999.0
+
+    while True:
+        ret, raw_frame = cap.read()
+        if not ret:
+            break
+
+        offset_s = frame_idx / actual_fps
+        current_dt = base_dt + datetime.timedelta(seconds=offset_s)
+        iso_time = current_dt.isoformat()
+
+        frame = rotate_frame(raw_frame, rotation) if rotation != 0 else raw_frame
+        h, w = frame.shape[:2]
+
+        # Whole frame sampling
+        if (offset_s - last_frame_sample_time) >= frame_sample_interval_s:
+            fh, fw = frame.shape[:2]
+            scale = min(640 / max(fw, fh), 1.0)
+            if scale < 1.0:
+                small_f = cv2.resize(frame, (int(fw * scale), int(fh * scale)), interpolation=cv2.INTER_AREA)
+            else:
+                small_f = frame.copy()
+            sampled_frames.append(SampledFrame(
+                frame_idx=frame_idx,
+                offset_s=round(offset_s, 3),
+                iso_time=iso_time,
+                frame_bgr=small_f
+            ))
+            last_frame_sample_time = offset_s
+
+        # Detection + Tracking with stride
+        if frame_idx % stride == 0:
+            dets = detector.detect(frame, imgsz=imgsz)
+            tracked_dets = run_tracker_on_detections(tracker, dets, frame, w, h)
+
+            for td in tracked_dets:
+                tid = td["track_id"]
+                bx1, by1, bx2, by2 = td["bbox"]
+                conf = td["conf"]
+                label = td["label"]
+
+                if (bx2 - bx1) <= 0 or (by2 - by1) <= 0:
+                    continue
+
+                crop = frame[by1:by2, bx1:bx2].copy()
+                quality = compute_crop_quality(crop, conf, [bx1, by1, bx2, by2], w, h)
+                bbox_norm = [round(bx1 / w, 4), round(by1 / h, 4), round(bx2 / w, 4), round(by2 / h, 4)]
+
+                obs = EngineTrackObs(
+                    frame_idx=frame_idx,
+                    offset_s=round(offset_s, 3),
+                    iso_time=iso_time,
+                    bbox_px=[bx1, by1, bx2, by2],
+                    bbox_norm=bbox_norm,
+                    conf=conf,
+                    quality=quality,
+                    crop_bgr=crop
+                )
+
+                if tid not in raw_tracks:
+                    raw_tracks[tid] = TrackState(track_id=tid)
+                raw_tracks[tid].add(obs, label, conf, frame_bgr=frame)
+
+        frame_idx += 1
+
+    cap.release()
+
+    # 1. Filter tracks
+    filtered_states, dropped_counts = filter_tracks(
+        raw_tracks,
+        min_duration_s=min_duration_s,
+        min_hits=min_hits,
+        min_mean_conf=min_mean_conf
+    )
+
+    # 2. Extract best crops, padded crops, and embeddings
+    summaries: List[TrackSummary] = []
+
+    for st in filtered_states:
+        best_obs, best_q = st.get_best_observation()
+        first_obs = st.observations[0]
+        last_obs = st.observations[-1]
+        voted_label = st.get_voted_label()
+        group = get_object_group(voted_label)
+
+        raw_crop = st.best_crop_bgr if st.best_crop_bgr is not None else best_obs.crop_bgr
+        padded_crop = pad_to_square(raw_crop)
+
+        colors_dict = extract_track_colors(padded_crop, voted_label, group)
+        colors_json = json.dumps(colors_dict)
+
+        if st.best_snapshot_bgr is not None:
+            snapshot = create_annotated_snapshot(
+                st.best_snapshot_bgr,
+                best_obs.bbox_px,
+                voted_label,
+                st.track_id,
+                best_obs.conf,
+                max_dim=640
+            )
+        else:
+            snapshot = padded_crop
+
+        summaries.append(TrackSummary(
+            track_id=st.track_id,
+            label=voted_label,
+            t_start=first_obs.iso_time,
+            t_end=last_obs.iso_time,
+            t_best=best_obs.iso_time,
+            offset_start=first_obs.offset_s,
+            offset_end=last_obs.offset_s,
+            offset_best=best_obs.offset_s,
+            bbox_px=best_obs.bbox_px,
+            bbox_norm=best_obs.bbox_norm,
+            best_crop=padded_crop,
+            best_snapshot_bgr=snapshot,
+            group=group,
+            colors=colors_json,
+            quality=round(best_q, 4),
+            hits=st.hits
+        ))
+
+    # 3. Track Stitching if embedder is provided
+    merge_logs: List[Dict[str, Any]] = []
+    if embedder is not None and len(summaries) > 1:
+        crops = [s.best_crop for s in summaries]
+        embs = embedder.embed_images(crops, initial_batch_size=16)
+
+        stitched_states, stitched_embs, merge_logs = stitch_tracks(
+            filtered_states,
+            embs,
+            max_gap_s=2.0,
+            max_center_dist=0.25,
+            min_cosine_sim=0.80
+        )
+
+        # Rebuild summaries from stitched states
+        if len(merge_logs) > 0:
+            rebuilt_summaries: List[TrackSummary] = []
+            for st in stitched_states:
+                best_obs, best_q = st.get_best_observation()
+                first_obs = st.observations[0]
+                last_obs = st.observations[-1]
+                voted_label = st.get_voted_label()
+                group = get_object_group(voted_label)
+
+                raw_crop = st.best_crop_bgr if st.best_crop_bgr is not None else best_obs.crop_bgr
+                padded_crop = pad_to_square(raw_crop)
+
+                colors_dict = extract_track_colors(padded_crop, voted_label, group)
+                colors_json = json.dumps(colors_dict)
+
+                if st.best_snapshot_bgr is not None:
+                    snapshot = create_annotated_snapshot(
+                        st.best_snapshot_bgr,
+                        best_obs.bbox_px,
+                        voted_label,
+                        st.track_id,
+                        best_obs.conf,
+                        max_dim=640
+                    )
+                else:
+                    snapshot = padded_crop
+
+                rebuilt_summaries.append(TrackSummary(
+                    track_id=st.track_id,
+                    label=voted_label,
+                    t_start=first_obs.iso_time,
+                    t_end=last_obs.iso_time,
+                    t_best=best_obs.iso_time,
+                    offset_start=first_obs.offset_s,
+                    offset_end=last_obs.offset_s,
+                    offset_best=best_obs.offset_s,
+                    bbox_px=best_obs.bbox_px,
+                    bbox_norm=best_obs.bbox_norm,
+                    best_crop=padded_crop,
+                    best_snapshot_bgr=snapshot,
+                    group=group,
+                    colors=colors_json,
+                    quality=round(best_q, 4),
+                    hits=st.hits
+                ))
+            summaries = rebuilt_summaries
+
+    return summaries, sampled_frames, dropped_counts, merge_logs

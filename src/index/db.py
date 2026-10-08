@@ -114,17 +114,24 @@ def insert_track(
     track_record: Dict[str, Any]
 ) -> None:
     track_record.setdefault("offset_best", track_record.get("offset_start", 0.0))
+    track_record.setdefault("group", track_record.get("group_name", "object"))
+    track_record.setdefault("colors", "{}")
+    track_record.setdefault("quality", 0.0)
+    track_record.setdefault("hits", 1)
     with conn:
         conn.execute(
             """
             INSERT INTO tracks (
-                id, video, camera, track_id, label, t_start, t_end, t_best,
-                offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb
+                id, video, camera, track_id, label, "group", t_start, t_end, t_best,
+                offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb,
+                colors, quality, hits
             ) VALUES (
-                :id, :video, :camera, :track_id, :label, :t_start, :t_end, :t_best,
-                :offset_start, :offset_end, :offset_best, :bbox_px, :bbox_norm, :snapshot, :emb
+                :id, :video, :camera, :track_id, :label, :group, :t_start, :t_end, :t_best,
+                :offset_start, :offset_end, :offset_best, :bbox_px, :bbox_norm, :snapshot, :emb,
+                :colors, :quality, :hits
             ) ON CONFLICT(id) DO UPDATE SET
                 label=excluded.label,
+                "group"=excluded."group",
                 t_start=excluded.t_start,
                 t_end=excluded.t_end,
                 t_best=excluded.t_best,
@@ -134,7 +141,10 @@ def insert_track(
                 bbox_px=excluded.bbox_px,
                 bbox_norm=excluded.bbox_norm,
                 snapshot=excluded.snapshot,
-                emb=excluded.emb;
+                emb=excluded.emb,
+                colors=excluded.colors,
+                quality=excluded.quality,
+                hits=excluded.hits;
             """,
             track_record
         )
@@ -146,17 +156,24 @@ def insert_tracks_batch(
 ) -> None:
     for r in track_records:
         r.setdefault("offset_best", r.get("offset_start", 0.0))
+        r.setdefault("group", r.get("group_name", "object"))
+        r.setdefault("colors", "{}")
+        r.setdefault("quality", 0.0)
+        r.setdefault("hits", 1)
     with conn:
         conn.executemany(
             """
             INSERT INTO tracks (
-                id, video, camera, track_id, label, t_start, t_end, t_best,
-                offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb
+                id, video, camera, track_id, label, "group", t_start, t_end, t_best,
+                offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb,
+                colors, quality, hits
             ) VALUES (
-                :id, :video, :camera, :track_id, :label, :t_start, :t_end, :t_best,
-                :offset_start, :offset_end, :offset_best, :bbox_px, :bbox_norm, :snapshot, :emb
+                :id, :video, :camera, :track_id, :label, :group, :t_start, :t_end, :t_best,
+                :offset_start, :offset_end, :offset_best, :bbox_px, :bbox_norm, :snapshot, :emb,
+                :colors, :quality, :hits
             ) ON CONFLICT(id) DO UPDATE SET
                 label=excluded.label,
+                "group"=excluded."group",
                 t_start=excluded.t_start,
                 t_end=excluded.t_end,
                 t_best=excluded.t_best,
@@ -166,7 +183,10 @@ def insert_tracks_batch(
                 bbox_px=excluded.bbox_px,
                 bbox_norm=excluded.bbox_norm,
                 snapshot=excluded.snapshot,
-                emb=excluded.emb;
+                emb=excluded.emb,
+                colors=excluded.colors,
+                quality=excluded.quality,
+                hits=excluded.hits;
             """,
             track_records
         )

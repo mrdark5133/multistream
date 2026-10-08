@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS tracks (
     camera TEXT NOT NULL,
     track_id INTEGER NOT NULL,
     label TEXT NOT NULL,
+    "group" TEXT NOT NULL DEFAULT 'object',
     t_start TEXT NOT NULL,          -- Absolute ISO-8601
     t_end TEXT NOT NULL,            -- Absolute ISO-8601
     t_best TEXT NOT NULL,           -- Absolute ISO-8601 of best frame
@@ -35,6 +36,9 @@ CREATE TABLE IF NOT EXISTS tracks (
     bbox_norm TEXT NOT NULL,        -- JSON [x1, y1, x2, y2]
     snapshot TEXT NOT NULL,         -- Relative path to JPEG
     emb BLOB NOT NULL,              -- Float32 binary bytes
+    colors TEXT DEFAULT '{}',       -- JSON color breakdown
+    quality REAL DEFAULT 0.0,       -- Crop quality metric (conf * size * sharpness)
+    hits INTEGER DEFAULT 1,         -- Number of detection observations in track
     FOREIGN KEY(video) REFERENCES videos(path)
 );
 

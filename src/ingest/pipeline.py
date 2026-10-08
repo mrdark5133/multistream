@@ -22,9 +22,11 @@ from src.ingest.start_time import resolve_video_metadata, VideoMetadata
 from src.ingest.detect_track import (
     load_yolo_world,
     process_video_tracks,
+    process_video_tracks_phase1b,
     TrackSummary,
     SampledFrame
 )
+from src.ingest.detector import HybridDetector
 from src.ingest.embed import SigLIPEmbedder
 from src.utils.vram import get_nvml_vram_info
 
@@ -32,6 +34,8 @@ from src.utils.vram import get_nvml_vram_info
 class IngestPipeline:
     """
     Multi-camera video ingest orchestrator with incremental indexing and duplicate prevention.
+    Supports Phase 1b upgrades: HybridDetector (COCO YOLO11 + YOLO-World), tuned ByteTrack,
+    track filtering, stitching, and Lab K-Means colors.
     """
     def __init__(
         self,
@@ -42,30 +46,21 @@ class IngestPipeline:
         vocab_path: str = "config/vocab.yaml",
         device: str = "cuda:0",
         yolo_model: Optional[YOLO] = None,
-        embedder: Optional[SigLIPEmbedder] = None
+        embedder: Optional[SigLIPEmbedder] = None,
+        use_hybrid_detector: bool = True
     ):
         self.db_path = Path(db_path)
         self.snapshots_dir = Path(snapshots_dir)
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
         self.embedder_name = embedder_name
         self.device = device
+        self.use_hybrid_detector = use_hybrid_detector
         
         # Initialize SQLite DB
         self.conn = init_db(self.db_path)
         set_config(self.conn, "embedder", embedder_name)
         
-        # Load or reuse models
-        if yolo_model is not None:
-            self.yolo = yolo_model
-            with open(vocab_path, "r", encoding="utf-8") as f:
-                self.classes = yaml.safe_load(f)["classes"]
-        else:
-            self.yolo, self.classes = load_yolo_world(
-                weights_path=yolo_weights,
-                vocab_path=vocab_path,
-                device=device
-            )
-            
+        # Load or reuse embedder
         if embedder is not None:
             self.embedder = embedder
         else:
@@ -74,16 +69,40 @@ class IngestPipeline:
                 device=device
             )
 
+        # Load detector
+        if self.use_hybrid_detector:
+            self.hybrid_detector = HybridDetector(
+                coco_weights="yolo11s.pt",
+                world_weights=yolo_weights,
+                vocab_path=vocab_path,
+                device=device
+            )
+            self.yolo = None
+            self.classes = []
+        else:
+            self.hybrid_detector = None
+            if yolo_model is not None:
+                self.yolo = yolo_model
+                with open(vocab_path, "r", encoding="utf-8") as f:
+                    self.classes = yaml.safe_load(f)["classes"]
+            else:
+                self.yolo, self.classes = load_yolo_world(
+                    weights_path=yolo_weights,
+                    vocab_path=vocab_path,
+                    device=device
+                )
+
     def ingest_video(
         self,
         video_path: str | Path,
         manifest_path: Optional[str | Path] = None,
         manual_camera: Optional[str] = None,
         manual_start: Optional[str] = None,
-        stride: int = 5,
+        stride: int = 2,
         conf_thresh: float = 0.25,
         imgsz: int = 640,
         frame_sample_interval_s: float = 2.0,
+        tracker_name: str = "bytetrack_tuned",
         force: bool = False
     ) -> Dict[str, Any]:
         """
@@ -122,20 +141,40 @@ class IngestPipeline:
                 self.conn.execute("DELETE FROM tracks WHERE video = ?;", (v_path_str,))
                 self.conn.execute("DELETE FROM frames WHERE video = ?;", (v_path_str,))
 
-        # 4. Detection & Tracking (Tasks 1.3, 1.4, 1.9, 1.10)
-        tracks, sampled_frames = process_video_tracks(
-            video_path=v_path,
-            yolo_model=self.yolo,
-            classes=self.classes,
-            start_time_iso=meta.start_time,
-            fps=meta.fps,
-            duration_s=meta.duration_s,
-            stride=stride,
-            conf_thresh=conf_thresh,
-            imgsz=imgsz,
-            rotation=meta.rotation,
-            frame_sample_interval_s=frame_sample_interval_s
-        )
+        # 4. Detection & Tracking
+        dropped_counts = {}
+        merge_logs = []
+        if self.use_hybrid_detector and self.hybrid_detector is not None:
+            tracks, sampled_frames, dropped_counts, merge_logs = process_video_tracks_phase1b(
+                video_path=v_path,
+                detector=self.hybrid_detector,
+                start_time_iso=meta.start_time,
+                fps=meta.fps,
+                duration_s=meta.duration_s,
+                stride=stride,
+                tracker_name=tracker_name,
+                imgsz=imgsz,
+                rotation=meta.rotation,
+                frame_sample_interval_s=frame_sample_interval_s,
+                min_duration_s=1.0,
+                min_hits=4,
+                min_mean_conf=0.35,
+                embedder=self.embedder
+            )
+        else:
+            tracks, sampled_frames = process_video_tracks(
+                video_path=v_path,
+                yolo_model=self.yolo,
+                classes=self.classes,
+                start_time_iso=meta.start_time,
+                fps=meta.fps,
+                duration_s=meta.duration_s,
+                stride=stride,
+                conf_thresh=conf_thresh,
+                imgsz=imgsz,
+                rotation=meta.rotation,
+                frame_sample_interval_s=frame_sample_interval_s
+            )
 
         # 5. Crop embeddings with OOM backoff (Task 1.5)
         crop_images = [t.best_crop for t in tracks]
@@ -162,6 +201,10 @@ class IngestPipeline:
                 "camera": meta.camera,
                 "track_id": t.track_id,
                 "label": t.label,
+                "group": getattr(t, "group", "object"),
+                "colors": getattr(t, "colors", "{}"),
+                "quality": getattr(t, "quality", 0.0),
+                "hits": getattr(t, "hits", 1),
                 "t_start": t.t_start,
                 "t_end": t.t_end,
                 "t_best": t.t_best,
