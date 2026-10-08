@@ -9,6 +9,7 @@ import numpy as np
 from src.index.db import get_db, blob_to_emb
 from src.query.parser import QueryParser, ParsedQuery
 from src.ingest.embed import SigLIPEmbedder
+from src.memory.aliases import AliasManager, point_in_polygon
 
 
 @dataclass
@@ -29,7 +30,8 @@ class SearchResult:
 
 class SearchEngine:
     """
-    MULTIStream Vector Similarity Search Engine with Spatio-Temporal Filtering & Deduplication.
+    MULTIStream Vector Similarity Search Engine with Spatio-Temporal Filtering,
+    Clarify-Once Memory Integration, and Temporal Deduplication.
     """
     def __init__(
         self,
@@ -40,16 +42,26 @@ class SearchEngine:
     ):
         self.db_path = Path(db_path)
         self.conn = get_db(self.db_path)
-        
-        # Load known cameras and aliases from DB
-        cur_cams = self.conn.execute("SELECT DISTINCT camera FROM videos;")
-        known_cams = [r[0] for r in cur_cams.fetchall()]
-        
-        cur_aliases = self.conn.execute("SELECT name FROM aliases;")
-        known_aliases = [r[0] for r in cur_aliases.fetchall()]
-        
-        self.parser = parser or QueryParser(known_cameras=known_cams, known_aliases=known_aliases)
+        self.alias_mgr = AliasManager(self.conn)
+        self.reload_parser(parser=parser)
         self.embedder = embedder or SigLIPEmbedder(device=device)
+
+    def reload_parser(self, parser: Optional[QueryParser] = None) -> None:
+        """Reload known cameras and saved aliases into query parser."""
+        known_cams = self.alias_mgr.get_known_cameras()
+        aliases_map = self.alias_mgr.get_all_aliases()
+        known_alias_dict = {name: data["camera"] for name, data in aliases_map.items()}
+        self.parser = parser or QueryParser(known_cameras=known_cams, known_aliases=known_alias_dict)
+
+    def save_alias(
+        self,
+        name: str,
+        camera: str,
+        polygon_norm: Optional[List[List[float]]] = None
+    ) -> None:
+        """Save a human location referent and reload parser memory."""
+        self.alias_mgr.save_alias(name, camera, polygon_norm=polygon_norm)
+        self.reload_parser()
 
     def get_latest_timestamp(self) -> datetime.datetime:
         """Get latest indexed video start timestamp as reference 'now'."""
@@ -62,6 +74,52 @@ class SearchEngine:
                 pass
         return datetime.datetime.now()
 
+    def query(
+        self,
+        query_text: str,
+        top_k: int = 10,
+        similarity_threshold: Optional[float] = None,
+        dedup_window_s: float = 5.0,
+        now_override: Optional[datetime.datetime] = None
+    ) -> Dict[str, Any]:
+        """
+        Unified Query function with clarify-once protocol.
+        If location is unknown, returns {"status": "clarify", "referent": referent, "options": known_cameras}.
+        If location is known or resolved, returns {"status": "success", "parsed": parsed, "results": results}.
+        """
+        now_ref = now_override or self.get_latest_timestamp()
+        parsed = self.parser.parse(query_text, now_ref=now_ref)
+        
+        # Check if query contains an unknown location referent
+        if parsed.location:
+            is_known_cam = any(
+                parsed.location.lower() == cam.lower() or parsed.location.lower() == cam.lower().replace("cam_", "")
+                for cam in self.alias_mgr.get_known_cameras()
+            )
+            is_known_alias = (self.alias_mgr.resolve_alias(parsed.location) is not None)
+            
+            if not is_known_cam and not is_known_alias:
+                # Trigger clarify-once request
+                return {
+                    "status": "clarify",
+                    "referent": parsed.location,
+                    "options": self.alias_mgr.get_known_cameras(),
+                    "parsed": parsed
+                }
+
+        parsed, results = self.search(
+            query_text=query_text,
+            top_k=top_k,
+            similarity_threshold=similarity_threshold,
+            dedup_window_s=dedup_window_s,
+            now_override=now_override
+        )
+        return {
+            "status": "success",
+            "parsed": parsed,
+            "results": results
+        }
+
     def search(
         self,
         query_text: str,
@@ -71,11 +129,28 @@ class SearchEngine:
         now_override: Optional[datetime.datetime] = None
     ) -> Tuple[ParsedQuery, List[SearchResult]]:
         """
-        Execute vector similarity search for natural language query.
+        Execute vector similarity search for natural language query with spatial & temporal filtering.
         """
         now_ref = now_override or self.get_latest_timestamp()
         parsed = self.parser.parse(query_text, now_ref=now_ref)
         
+        # Check alias resolution and polygon filter
+        target_camera = None
+        target_polygon = None
+        
+        if parsed.location:
+            # 1. Check known cameras
+            for cam in self.alias_mgr.get_known_cameras():
+                if parsed.location.lower() == cam.lower() or parsed.location.lower() == cam.lower().replace("cam_", ""):
+                    target_camera = cam
+                    break
+            
+            # 2. Check saved aliases
+            if not target_camera:
+                res_alias = self.alias_mgr.resolve_alias(parsed.location)
+                if res_alias:
+                    target_camera, target_polygon = res_alias
+
         # 1. Embed query visual prompt
         query_emb = self.embedder.embed_text([parsed.object_prompt])[0]
         
@@ -83,10 +158,9 @@ class SearchEngine:
         track_sql = "SELECT id, video, camera, track_id, label, t_start, t_end, t_best, offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb FROM tracks WHERE 1=1"
         params: List[Any] = []
 
-        if parsed.location:
-            # Check camera matching
+        if target_camera:
             track_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
-            params.extend([f"%{parsed.location.lower()}%", f"%cam_{parsed.location.lower()}%"])
+            params.extend([f"%{target_camera.lower()}%", f"%cam_{target_camera.lower()}%"])
 
         if parsed.t_start and parsed.t_end:
             track_sql += " AND (t_start <= ? AND t_end >= ?)"
@@ -97,11 +171,18 @@ class SearchEngine:
         candidates: List[SearchResult] = []
 
         for row in cur_tracks:
+            bbox_norm = json.loads(row["bbox_norm"]) if row["bbox_norm"] else None
+            # Apply spatial polygon filter if defined for this alias
+            if target_polygon and bbox_norm and len(bbox_norm) == 4:
+                cx = (bbox_norm[0] + bbox_norm[2]) / 2.0
+                cy = (bbox_norm[1] + bbox_norm[3]) / 2.0
+                if not point_in_polygon(cx, cy, target_polygon):
+                    continue
+
             track_emb = blob_to_emb(row["emb"])
             score = float(np.dot(query_emb, track_emb))
             if similarity_threshold is None or score >= similarity_threshold:
                 bbox_px = json.loads(row["bbox_px"]) if row["bbox_px"] else None
-                bbox_norm = json.loads(row["bbox_norm"]) if row["bbox_norm"] else None
                 candidates.append(SearchResult(
                     result_id=row["id"],
                     result_type="track",
@@ -116,35 +197,36 @@ class SearchEngine:
                     bbox_norm=bbox_norm
                 ))
 
-        # 3. Query whole frames table (fallback / scene context)
-        frame_sql = "SELECT id, video, camera, t_abs, offset_s, snapshot, emb FROM frames WHERE 1=1"
-        frame_params: List[Any] = []
+        # 3. Query whole frames table (fallback / scene context, skipped if polygon filter is active)
+        if not target_polygon:
+            frame_sql = "SELECT id, video, camera, t_abs, offset_s, snapshot, emb FROM frames WHERE 1=1"
+            frame_params: List[Any] = []
 
-        if parsed.location:
-            frame_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
-            frame_params.extend([f"%{parsed.location.lower()}%", f"%cam_{parsed.location.lower()}%"])
+            if target_camera:
+                frame_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
+                frame_params.extend([f"%{target_camera.lower()}%", f"%cam_{target_camera.lower()}%"])
 
-        if parsed.t_start and parsed.t_end:
-            frame_sql += " AND (t_abs >= ? AND t_abs <= ?)"
-            frame_params.extend([parsed.t_start, parsed.t_end])
+            if parsed.t_start and parsed.t_end:
+                frame_sql += " AND (t_abs >= ? AND t_abs <= ?)"
+                frame_params.extend([parsed.t_start, parsed.t_end])
 
-        cur_frames = self.conn.execute(frame_sql, frame_params).fetchall()
+            cur_frames = self.conn.execute(frame_sql, frame_params).fetchall()
 
-        for row in cur_frames:
-            f_emb = blob_to_emb(row["emb"])
-            score = float(np.dot(query_emb, f_emb))
-            if similarity_threshold is None or score >= similarity_threshold:
-                candidates.append(SearchResult(
-                    result_id=row["id"],
-                    result_type="frame",
-                    camera=row["camera"],
-                    timestamp=row["t_abs"],
-                    offset_seconds=float(row["offset_s"]),
-                    score=round(score, 4),
-                    label="whole_frame",
-                    video_path=row["video"],
-                    snapshot_path=row["snapshot"]
-                ))
+            for row in cur_frames:
+                f_emb = blob_to_emb(row["emb"])
+                score = float(np.dot(query_emb, f_emb))
+                if similarity_threshold is None or score >= similarity_threshold:
+                    candidates.append(SearchResult(
+                        result_id=row["id"],
+                        result_type="frame",
+                        camera=row["camera"],
+                        timestamp=row["t_abs"],
+                        offset_seconds=float(row["offset_s"]),
+                        score=round(score, 4),
+                        label="whole_frame",
+                        video_path=row["video"],
+                        snapshot_path=row["snapshot"]
+                    ))
 
         # 4. Sort by score descending
         candidates.sort(key=lambda x: x.score, reverse=True)
@@ -174,3 +256,25 @@ class SearchEngine:
                 break
 
         return parsed, deduped
+
+
+def save_alias(
+    name: str,
+    camera: str,
+    polygon_norm: Optional[List[List[float]]] = None,
+    db_path: str | Path = "index_base/index.db"
+) -> None:
+    """Module-level save_alias helper."""
+    mgr = AliasManager(db_path)
+    mgr.save_alias(name, camera, polygon_norm=polygon_norm)
+
+
+def query(
+    query_text: str,
+    db_path: str | Path = "index_base/index.db",
+    engine: Optional[SearchEngine] = None,
+    **kwargs
+) -> Dict[str, Any]:
+    """Module-level query helper with clarify-once protocol."""
+    eng = engine or SearchEngine(db_path=db_path)
+    return eng.query(query_text, **kwargs)

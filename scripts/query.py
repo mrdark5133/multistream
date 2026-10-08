@@ -20,14 +20,12 @@ def main():
     parser.add_argument("--top-k", type=int, default=5, help="Number of results to return")
     parser.add_argument("--cut-clips", action="store_true", help="Extract video clips for top results")
     parser.add_argument("--clips-dir", type=str, default="clips", help="Output directory for clips")
+    parser.add_argument("--save-alias", type=str, default=None, help="Save a human location alias name")
+    parser.add_argument("--camera", type=str, default=None, help="Camera identifier for saved alias")
+    parser.add_argument("--polygon", type=str, default=None, help="JSON string of normalized polygon coordinates [[x,y],...]")
     parser.add_argument("--now", type=str, default=None, help="Override reference timestamp ISO-8601")
     parser.add_argument("--json", action="store_true", help="Output raw JSON results")
     args = parser.parse_args()
-
-    q_text = args.query or args.query_flag
-    if not q_text:
-        parser.print_help()
-        sys.exit(1)
 
     index_dir = Path(args.index_dir)
     db_path = index_dir / "index.db"
@@ -38,15 +36,61 @@ def main():
 
     engine = SearchEngine(db_path=db_path)
 
+    # 1. Alias management
+    if args.save_alias:
+        if not args.camera:
+            print("Error: --camera must be specified when using --save-alias.")
+            sys.exit(1)
+        poly = json.loads(args.polygon) if args.polygon else None
+        engine.save_alias(args.save_alias, args.camera, polygon_norm=poly)
+        if args.json:
+            print(json.dumps({
+                "status": "saved",
+                "name": args.save_alias,
+                "camera": args.camera,
+                "polygon": poly
+            }, indent=2))
+        else:
+            print(f"Successfully saved alias '{args.save_alias}' -> camera '{args.camera}' (polygon: {poly})")
+        if not (args.query or args.query_flag):
+            return
+
+    q_text = args.query or args.query_flag
+    if not q_text:
+        parser.print_help()
+        sys.exit(1)
+
     now_override = datetime.datetime.fromisoformat(args.now) if args.now else None
 
     t0 = time.perf_counter()
-    parsed, results = engine.search(
+    resp = engine.query(
         query_text=q_text,
         top_k=args.top_k,
         now_override=now_override
     )
     t_search = time.perf_counter() - t0
+
+    # 2. Handle clarification request
+    if resp["status"] == "clarify":
+        if args.json:
+            out_clarify = {
+                "status": "clarify",
+                "referent": resp["referent"],
+                "options": resp["options"]
+            }
+            print(json.dumps(out_clarify, indent=2))
+        else:
+            print("=" * 80)
+            print("CLARIFICATION REQUIRED:")
+            print(f"Location referent '{resp['referent']}' is unknown and not mapped to any camera.")
+            print(f"Available cameras: {', '.join(resp['options'])}")
+            print("To map this referent, run:")
+            print(f"  python scripts/query.py --save-alias \"{resp['referent']}\" --camera <CAMERA_NAME>")
+            print("=" * 80)
+        return
+
+    parsed = resp["parsed"]
+    results = resp["results"]
 
     # Optional clip cutting
     if args.cut_clips:

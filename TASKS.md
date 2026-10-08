@@ -49,17 +49,17 @@ Rules: Check a box ONLY when the acceptance test for that task has passed. Inclu
 ---
 
 ## Phase 3: Clarify-Once Memory
-- [ ] 3.1 Implement `aliases` table with normalized name matching and polygon storage
-- [ ] 3.2 Implement clarify flow: return clarification request for unknown referents and store `save_alias`
-- [ ] 3.3 Implement normalized polygon bounding-box center spatial filter
-- [ ] 3.4 Automated test suite:
-  - [ ] 3.4.a Unknown referent triggers clarification exactly once
-  - [ ] 3.4.b Stored alias never asks again across paraphrased queries
-  - [ ] 3.4.c Cross-process server restart persistence test
-  - [ ] 3.4.d Known camera names bypass clarification
-  - [ ] 3.4.e Polygon filter correctness on track centers
-- [ ] 3.5 Disallow LLM/context guessing for unknown locations
-- [ ] Phase 3 Report generated and approved (`REPORTS/PHASE_3_REPORT.md`)
+- [x] 3.1 Implement `aliases` table with normalized name matching and polygon storage
+- [x] 3.2 Implement clarify flow: return clarification request for unknown referents and store `save_alias`
+- [x] 3.3 Implement normalized polygon bounding-box center spatial filter
+- [x] 3.4 Automated test suite:
+  - [x] 3.4.a Unknown referent triggers clarification exactly once
+  - [x] 3.4.b Stored alias never asks again across paraphrased queries
+  - [x] 3.4.c Cross-process server restart persistence test
+  - [x] 3.4.d Known camera names bypass clarification
+  - [x] 3.4.e Polygon filter correctness on track centers
+- [x] 3.5 Disallow LLM/context guessing for unknown locations
+- [x] Phase 3 Report generated and approved (`REPORTS/PHASE_3_REPORT.md`)
 
 ---
 
