@@ -56,5 +56,30 @@ CREATE TABLE IF NOT EXISTS aliases (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS alert_rules (
+    id TEXT PRIMARY KEY,
+    rule_name TEXT NOT NULL,
+    query_text TEXT NOT NULL,
+    camera_filter TEXT,             -- specific camera or NULL for all
+    min_score REAL DEFAULT 0.60,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    last_triggered_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS alert_events (
+    id TEXT PRIMARY KEY,
+    rule_id TEXT NOT NULL,
+    track_id TEXT NOT NULL,
+    camera TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    score REAL NOT NULL,
+    snapshot_path TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(rule_id) REFERENCES alert_rules(id),
+    FOREIGN KEY(track_id) REFERENCES tracks(id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_tracks_lookup ON tracks(camera, t_start, t_end);
 CREATE INDEX IF NOT EXISTS idx_frames_lookup ON frames(camera, t_abs);
+CREATE INDEX IF NOT EXISTS idx_alerts_rule ON alert_events(rule_id, timestamp);

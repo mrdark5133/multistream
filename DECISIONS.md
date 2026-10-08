@@ -47,3 +47,20 @@ This document records technical and design decisions, recording rationale, trade
 - **Context**: Cloud LLMs (Gemini / Claude) offer flexible natural language extraction, but can fail due to missing keys, rate limits, or network interruptions.
 - **Decision**: Implement a unified provider abstraction in `src/llm/providers.py`. Priority order: configured provider (`claude` or `gemini`) falling back to a deterministic, zero-dependency `rules` parser.
 - **Alternatives Considered**: Hard-coding a single LLM SDK. Rejected to ensure graceful offline degradation and reproducible benchmark comparisons.
+
+---
+
+### [2026-10-08] DECISION-005: Cross-Camera Re-Identification via Temporal Constraint & Visual Cosine Sim
+- **Status**: Adopted
+- **Context**: Users need to trace entities moving across different camera fields of view without training an expensive domain-specific ReID neural network.
+- **Decision**: Compute pairwise cosine similarities between SigLIP crop embeddings across tracks on different cameras, filtered by a configurable temporal gap window (`--max-gap-s`, default 7200s). Generate chronological trajectory reports (`cam A at <t1> -> cam B at <t2>`).
+- **Alternatives Considered**: Training a separate ResNet/OSNet ReID model. Rejected due to dataset annotation requirements and GPU VRAM budget on 4 GB RTX 3050.
+
+---
+
+### [2026-10-08] DECISION-006: Standing Alert Rules & Event Triggers in SQLite WAL
+- **Status**: Adopted
+- **Context**: Real-time multi-camera operations require persistent alerting when specific objects (e.g., vehicles, pedestrians) enter monitored camera feeds.
+- **Decision**: Maintain persistent `alert_rules` and `alert_events` tables directly in the primary SQLite WAL database. Pre-embed query text on rule creation/evaluation and vectorize candidate tracks with duplicate suppression to guarantee fast real-time online scanning.
+- **Alternatives Considered**: External message brokers (Redis/RabbitMQ). Rejected to preserve self-contained, zero-external-dependency deployment architecture.
+

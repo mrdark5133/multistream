@@ -1,75 +1,117 @@
 # MULTIStream: Multi-Stream Video Intelligence with Conversational Query
 
-Multi-camera CCTV intelligence system that indexes video feeds using open-vocabulary detection (YOLO-World), tracking (ByteTrack), and vision-language embeddings (SigLIP), enabling natural-language spatial and temporal search with verifiable visual evidence (annotated snapshots and on-demand video clips).
+Multi-camera CCTV intelligence system that indexes video feeds using open-vocabulary detection (YOLO-World), multi-object tracking (ByteTrack), and vision-language embeddings (SigLIP), enabling natural-language spatial and temporal search with verifiable visual evidence (annotated snapshots and on-demand video clips).
 
 Built for HackNex 2026 (Problem HNX26EPS05).
 
 ---
 
-## 1. Prerequisites
+## 1. System Features & Architecture
+
+- **Open-Vocabulary Tracking**: YOLO-World detection + ByteTrack across arbitrary camera feeds and rotations.
+- **Vision-Language Search**: Google SigLIP (`google/siglip-base-patch16-224`) embeddings for sub-350ms cosine similarity search.
+- **Spatial ROI & Temporal Parsing**: Rule-based and LLM query parsing with time window resolution and camera polygon spatial filtering.
+- **Clarify-Once Memory**: Disambiguates unknown locations with user confirmation and stores aliases permanently in SQLite WAL database.
+- **On-Demand Clip Extraction**: Slices relevant video segments with boundary padding without re-encoding the entire feed.
+- **Live Ingestion & Stream Recording**: RTSP and simulated video stream recording (`scripts/record.py`) with continuous folder monitoring (`scripts/watch.py`).
+- **Cross-Camera Re-Identification (ReID)**: Automatically links tracks across cameras to construct spatio-temporal trajectories.
+- **Standing Queries & Alert Triggers**: Persistent monitoring rules with automated event triggering and snapshots.
+- **Web Interface & REST API**: High-performance FastAPI server and interactive browser UI for search, upload, and snippet playback.
+- **100% Offline Capability**: Fully air-gapped capable (`PARSER_PROVIDER=rules`, `RERANK_PROVIDER=off`), 0 bytes transmitted externally.
+
+---
+
+## 2. Prerequisites & Environment
+
 - **OS**: Windows / Linux
 - **GPU**: NVIDIA GPU (CUDA-compatible, e.g. RTX 3050 4 GB VRAM)
-- **Software**: Python 3.10+, `ffmpeg` on PATH, `git` on PATH
+- **Software**: Python 3.11+, `ffmpeg` & `ffprobe`
+- **Key Python Packages**: `torch>=2.6`, `transformers>=4.40`, `ultralytics>=8.3`, `fastapi>=0.110`, `opencv-python`
 
 ---
 
-## 2. Installation & Setup
+## 3. Quick Start & Demo
 
-1. **Clone & Virtual Environment**:
-   ```powershell
-   git clone <repo_url>
-   cd MULTIStream
-   python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   ```
+Run the automated end-to-end demonstration script:
 
-2. **Install Dependencies**:
-   ```powershell
-   pip install -r requirements.txt
-   ```
+```powershell
+.venv\Scripts\python.exe scripts/demo.py
+```
 
-3. **Configure Environment Variables**:
-   ```powershell
-   cp .env.example .env
-   # Edit .env with your API keys if using LLM query parsing / reranking
-   ```
-
-4. **Verify Environment**:
-   ```powershell
-   python scripts/check_env.py
-   ```
+Launch the web application:
+```powershell
+.venv\Scripts\python.exe -m uvicorn src.api.app:app --host 127.0.0.1 --port 8000
+```
+Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) in your browser.
 
 ---
 
-## 3. Usage
+## 4. CLI Commands & Workflows
 
-### Ingesting Videos
-Drop video files into `footage/` or run the ingest CLI directly:
+### Ingestion
 ```powershell
-python scripts/ingest.py --videos footage/ --out index_siglip/
+# Ingest single video or folder
+.venv\Scripts\python.exe scripts/ingest.py --video footage/test_video01.mp4 --index-dir index_base
+
+# Folder watching & live incremental ingest
+.venv\Scripts\python.exe scripts/watch.py --watch-dirs footage/recorded --once
 ```
 
-### Running Queries via CLI
+### Natural Language Search
 ```powershell
-python scripts/query.py "did a red car pass through the main gate in the last hour?" --index index_siglip/
+# Search with clip cutting
+.venv\Scripts\python.exe scripts/query.py --query "pedestrian on cam_landscape" --cut-clips
+
+# Search with temporal constraint
+.venv\Scripts\python.exe scripts/query.py --query "car yesterday" --top-k 5
 ```
 
-### Starting API & Chat UI
+### Camera Aliases & Spatial Polygon
 ```powershell
-uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+# Define camera alias with spatial ROI
+.venv\Scripts\python.exe scripts/alias.py --add "driveway" --camera cam_landscape --polygon "[[0.1, 0.2], [0.8, 0.2], [0.8, 0.9], [0.1, 0.9]]"
+
+# List saved aliases
+.venv\Scripts\python.exe scripts/alias.py --list
 ```
-Open `http://localhost:8000` in your browser to interact with the conversational chat interface and annotate camera polygons.
+
+### Cross-Camera Re-Identification
+```powershell
+# Re-identify track across cameras
+.venv\Scripts\python.exe scripts/reid.py --track-id test_landscape_trk_11 --min-sim 0.70
+
+# Discover all candidate camera hops
+.venv\Scripts\python.exe scripts/reid.py --min-sim 0.65 --top-k 5
+```
+
+### Standing Queries & Alerts
+```powershell
+# Add standing alert rule
+.venv\Scripts\python.exe scripts/alerts.py --add --name "Vehicle Movement" --query "truck or car or suv" --min-score 0.04
+
+# Evaluate rules against tracks
+.venv\Scripts\python.exe scripts/alerts.py --evaluate
+
+# List triggered events
+.venv\Scripts\python.exe scripts/alerts.py --list-events
+```
 
 ---
 
-## 4. Running Tests & Benchmarks
+## 5. Testing & Evaluation
+
 ```powershell
-pytest tests/ -v
-python scripts/eval.py --queries eval/queries.json --index index_siglip/
+# Run unit and integration tests
+.venv\Scripts\python.exe -m pytest tests/ -v
+
+# Run evaluation benchmark
+.venv\Scripts\python.exe scripts/eval.py
 ```
 
 ---
 
-## 5. Architectural Principles & Rules
-See `RULES.md` for non-negotiable verification and honesty standards.
-See `PLAN.md` and `ARCHITECTURE.md` for detailed technical specifications.
+## 6. Documentation & Architecture
+- [DEMO.md](DEMO.md) - Complete end-to-end user walkthrough.
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and component interactions.
+- [DECISIONS.md](DECISIONS.md) - Architecture decision records (ADRs).
+- [RULES.md](RULES.md) - Verification and honesty protocols.

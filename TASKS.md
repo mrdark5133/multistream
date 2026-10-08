@@ -93,9 +93,9 @@ Rules: Check a box ONLY when the acceptance test for that task has passed. Inclu
 ---
 
 ## Phase 7: Stretch Goals and Hardening
-- [ ] 7.1 Unified `watch.py` folder watcher and RTSP `record.py`
-- [ ] 7.2 Inter-camera track re-identification and spatio-temporal timeline generation
-- [ ] 7.3 Standing query and event alert triggers
-- [ ] 7.4 Privacy audit & offline performance verification (`PARSER_PROVIDER=rules`, `RERANK_PROVIDER=off`)
-- [ ] 7.5 Project polish, documentation cleanup, and demo script
-- [ ] Phase 7 Report generated and approved (`REPORTS/PHASE_7_REPORT.md`)
+- [x] 7.1 Unified `watch.py` folder watcher and RTSP `record.py`
+- [x] 7.2 Inter-camera track re-identification and spatio-temporal timeline generation
+- [x] 7.3 Standing query and event alert triggers
+- [x] 7.4 Privacy audit & offline performance verification (`PARSER_PROVIDER=rules`, `RERANK_PROVIDER=off`)
+- [x] 7.5 Project polish, documentation cleanup, and demo script
+- [x] Phase 7 Report generated and approved (`REPORTS/PHASE_7_REPORT.md`)
