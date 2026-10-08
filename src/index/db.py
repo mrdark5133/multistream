@@ -113,6 +113,7 @@ def insert_track(
     conn: sqlite3.Connection,
     track_record: Dict[str, Any]
 ) -> None:
+    track_record.setdefault("offset_best", track_record.get("offset_start", 0.0))
     with conn:
         conn.execute(
             """
@@ -143,6 +144,8 @@ def insert_tracks_batch(
     conn: sqlite3.Connection,
     track_records: List[Dict[str, Any]]
 ) -> None:
+    for r in track_records:
+        r.setdefault("offset_best", r.get("offset_start", 0.0))
     with conn:
         conn.executemany(
             """

@@ -20,7 +20,7 @@ class ParsedQuery:
 
 # Location preposition patterns
 LOCATION_PATTERNS = [
-    re.compile(r"\b(?:at|near|in|by|around|towards|through)\s+(?:the\s+)?([a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+)?)\b", re.IGNORECASE),
+    re.compile(r"\b(?:at|near|in|by|around|towards|through)\s+(?:the\s+)?([a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+)*)\b", re.IGNORECASE),
     re.compile(r"\bcamera\s+([a-zA-Z0-9_\-]+)\b", re.IGNORECASE),
     re.compile(r"\b(cam_[a-zA-Z0-9_\-]+)\b", re.IGNORECASE)
 ]

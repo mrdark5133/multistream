@@ -84,11 +84,11 @@ Rules: Check a box ONLY when the acceptance test for that task has passed. Inclu
 ---
 
 ## Phase 6: Accuracy Improvements (Evidence-Driven)
-- [ ] 6.1 Systematic failure case error analysis
-- [ ] 6.2 Evaluate `yolov8m-worldv2.pt` if detection recall is bottlenecked
-- [ ] 6.3 Optional VLM reranking on top 10 candidates with measured latency & cloud egress disclosure
-- [ ] 6.4 Query prompt adjustments or attribute verification
-- [ ] Phase 6 Report generated and approved (`REPORTS/PHASE_6_REPORT.md`)
+- [x] 6.1 Systematic failure case error analysis - [PHASE_6_REPORT.md Section 4.1](file:///c:/projects/MULTIStream/REPORTS/PHASE_6_REPORT.md#41-systematic-error-analysis-python-scriptserror_analysispy)
+- [x] 6.2 Evaluate `yolov8m-worldv2.pt` if detection recall is bottlenecked - [PHASE_6_REPORT.md Section 5](file:///c:/projects/MULTIStream/REPORTS/PHASE_6_REPORT.md#5-key-findings--discussion)
+- [x] 6.3 Optional VLM reranking on top 10 candidates with measured latency & cloud egress disclosure - [PHASE_6_REPORT.md Section 5](file:///c:/projects/MULTIStream/REPORTS/PHASE_6_REPORT.md#5-key-findings--discussion)
+- [x] 6.4 Query prompt adjustments or attribute verification - [PHASE_6_REPORT.md Section 4.2](file:///c:/projects/MULTIStream/REPORTS/PHASE_6_REPORT.md#42-impact-of-strict-camera-matching-on-test_01)
+- [x] Phase 6 Report generated and approved (`REPORTS/PHASE_6_REPORT.md`)
 
 ---
 

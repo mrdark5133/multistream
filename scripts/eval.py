@@ -114,8 +114,15 @@ def evaluate_queries(
             frame_sql = "SELECT id, video, camera, t_abs, offset_s, snapshot, emb FROM frames WHERE 1=1"
             params = []
             if parsed.location_status == "RESOLVED" and parsed.resolved_camera:
-                frame_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
-                params.extend([f"%{parsed.resolved_camera.lower()}%", f"%cam_{parsed.resolved_camera.lower()}%"])
+                if mode in ["strict_camera", "vlm_off"]:
+                    cam_norm = parsed.resolved_camera.lower()
+                    cam_bare = cam_norm.replace("cam_", "")
+                    cam_with = f"cam_{cam_bare}"
+                    frame_sql += " AND LOWER(camera) IN (?, ?, ?)"
+                    params.extend([cam_norm, cam_bare, cam_with])
+                else:
+                    frame_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
+                    params.extend([f"%{parsed.resolved_camera.lower()}%", f"%cam_{parsed.resolved_camera.lower()}%"])
             rows = engine.conn.execute(frame_sql, params).fetchall()
             for r in rows:
                 score = float(np.dot(query_emb, blob_to_emb(r["emb"])))
@@ -138,8 +145,15 @@ def evaluate_queries(
             track_sql = "SELECT id, video, camera, track_id, label, t_start, t_end, t_best, offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb FROM tracks WHERE 1=1"
             params = []
             if parsed.location_status == "RESOLVED" and parsed.resolved_camera:
-                track_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
-                params.extend([f"%{parsed.resolved_camera.lower()}%", f"%cam_{parsed.resolved_camera.lower()}%"])
+                if mode in ["strict_camera", "vlm_off"]:
+                    cam_norm = parsed.resolved_camera.lower()
+                    cam_bare = cam_norm.replace("cam_", "")
+                    cam_with = f"cam_{cam_bare}"
+                    track_sql += " AND LOWER(camera) IN (?, ?, ?)"
+                    params.extend([cam_norm, cam_bare, cam_with])
+                else:
+                    track_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
+                    params.extend([f"%{parsed.resolved_camera.lower()}%", f"%cam_{parsed.resolved_camera.lower()}%"])
             
             rows = engine.conn.execute(track_sql, params).fetchall()
             for r in rows:
@@ -160,8 +174,15 @@ def evaluate_queries(
             frame_sql = "SELECT id, video, camera, t_abs, offset_s, snapshot, emb FROM frames WHERE 1=1"
             frame_params = []
             if parsed.location_status == "RESOLVED" and parsed.resolved_camera:
-                frame_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
-                frame_params.extend([f"%{parsed.resolved_camera.lower()}%", f"%cam_{parsed.resolved_camera.lower()}%"])
+                if mode in ["strict_camera", "vlm_off"]:
+                    cam_norm = parsed.resolved_camera.lower()
+                    cam_bare = cam_norm.replace("cam_", "")
+                    cam_with = f"cam_{cam_bare}"
+                    frame_sql += " AND LOWER(camera) IN (?, ?, ?)"
+                    frame_params.extend([cam_norm, cam_bare, cam_with])
+                else:
+                    frame_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
+                    frame_params.extend([f"%{parsed.resolved_camera.lower()}%", f"%cam_{parsed.resolved_camera.lower()}%"])
             for r in engine.conn.execute(frame_sql, frame_params).fetchall():
                 score = float(np.dot(query_emb, blob_to_emb(r["emb"])))
                 candidates.append(SearchResult(
@@ -201,6 +222,10 @@ def evaluate_queries(
                     if len(deduped) >= top_k:
                         break
                 results = deduped
+
+        # Optional VLM reranking
+        if mode == "vlm_off":
+            results, _ = engine.reranker.rerank(prompt, results, top_k=top_k)
 
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         latencies.append(elapsed_ms)
@@ -278,11 +303,13 @@ def main():
 
     # Run Ablation Matrix
     modes = [
-        ("Full Pipeline (Ours)", "full"),
+        ("Full Pipeline (Phase 5)", "full"),
         ("Whole-Frame Baseline", "whole_frame"),
         ("No-Tracking Ablation", "no_tracking"),
         ("Prompt Variant: Bare", "bare_prompt"),
-        ("Prompt Variant: 'a photo of...'", "photo_prompt")
+        ("Prompt Variant: 'a photo of...'", "photo_prompt"),
+        ("Phase 6: + Strict Camera Match", "strict_camera"),
+        ("Phase 6: + VLM Rerank (Provider=off)", "vlm_off")
     ]
 
     ablation_results = []

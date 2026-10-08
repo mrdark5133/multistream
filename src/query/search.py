@@ -10,6 +10,7 @@ from src.index.db import get_db, blob_to_emb
 from src.query.parser import QueryParser, ParsedQuery
 from src.ingest.embed import SigLIPEmbedder
 from src.memory.aliases import AliasManager, point_in_polygon
+from src.query.rerank import VLMReranker
 
 
 @dataclass
@@ -38,6 +39,7 @@ class SearchEngine:
         db_path: str | Path,
         embedder: Optional[SigLIPEmbedder] = None,
         parser: Optional[QueryParser] = None,
+        reranker: Optional[VLMReranker] = None,
         device: str = "cuda:0"
     ):
         self.db_path = Path(db_path)
@@ -45,6 +47,7 @@ class SearchEngine:
         self.alias_mgr = AliasManager(self.conn)
         self.reload_parser(parser=parser)
         self.embedder = embedder or SigLIPEmbedder(device=device)
+        self.reranker = reranker or VLMReranker()
 
     def reload_parser(self, parser: Optional[QueryParser] = None) -> None:
         """Reload known cameras and saved aliases into query parser."""
@@ -159,8 +162,11 @@ class SearchEngine:
         params: List[Any] = []
 
         if target_camera:
-            track_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
-            params.extend([f"%{target_camera.lower()}%", f"%cam_{target_camera.lower()}%"])
+            cam_norm = target_camera.lower()
+            cam_bare = cam_norm.replace("cam_", "")
+            cam_with = f"cam_{cam_bare}"
+            track_sql += " AND LOWER(camera) IN (?, ?, ?)"
+            params.extend([cam_norm, cam_bare, cam_with])
 
         if parsed.t_start and parsed.t_end:
             track_sql += " AND (t_start <= ? AND t_end >= ?)"
@@ -203,8 +209,11 @@ class SearchEngine:
             frame_params: List[Any] = []
 
             if target_camera:
-                frame_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
-                frame_params.extend([f"%{target_camera.lower()}%", f"%cam_{target_camera.lower()}%"])
+                cam_norm = target_camera.lower()
+                cam_bare = cam_norm.replace("cam_", "")
+                cam_with = f"cam_{cam_bare}"
+                frame_sql += " AND LOWER(camera) IN (?, ?, ?)"
+                frame_params.extend([cam_norm, cam_bare, cam_with])
 
             if parsed.t_start and parsed.t_end:
                 frame_sql += " AND (t_abs >= ? AND t_abs <= ?)"
@@ -254,6 +263,10 @@ class SearchEngine:
                 deduped.append(cand)
             if len(deduped) >= top_k:
                 break
+
+        # 6. Optional VLM Reranking (Phase 6)
+        if self.reranker and self.reranker.provider != "off":
+            deduped, _ = self.reranker.rerank(parsed.object_prompt, deduped, top_k=top_k)
 
         return parsed, deduped
 

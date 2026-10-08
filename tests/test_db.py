@@ -66,6 +66,7 @@ def test_video_and_track_fk(temp_db):
         "t_best": "2026-10-08T10:00:01",
         "offset_start": 0.0,
         "offset_end": 2.0,
+        "offset_best": 1.0,
         "bbox_px": "[10, 10, 50, 100]",
         "bbox_norm": "[0.1, 0.1, 0.5, 0.8]",
         "snapshot": "snapshots/trk_01.jpg",
