@@ -1,0 +1,75 @@
+# CCTV and Surveillance Vocabulary for YOLO-World (~60 Classes)
+classes:
+  # Persons and Roles
+  - person
+  - pedestrian
+  - cyclist
+  - child
+  - security guard
+  - delivery worker
+  - construction worker
+
+  # Vehicles
+  - car
+  - sedan
+  - suv
+  - van
+  - pickup truck
+  - truck
+  - semi-truck
+  - bus
+  - motorcycle
+  - motorbike
+  - bicycle
+  - electric scooter
+  - autorickshaw
+  - ambulance
+  - police car
+  - fire truck
+  - forklift
+
+  # Carried and Personal Items
+  - backpack
+  - handbag
+  - purse
+  - shoulder bag
+  - tote bag
+  - duffel bag
+  - suitcase
+  - luggage
+  - briefcase
+  - box
+  - cardboard box
+  - package
+  - parcel
+  - umbrella
+  - walking stick
+
+  # Wearables & Protective Gear
+  - helmet
+  - motorcycle helmet
+  - safety helmet
+  - hard hat
+  - safety vest
+  - high-visibility jacket
+  - cap
+  - hat
+  - face mask
+
+  # Movement Aids & Utility Objects
+  - stroller
+  - baby carriage
+  - wheelchair
+  - shopping cart
+  - hand truck
+  - utility cart
+  - ladder
+  - traffic cone
+  - barricade
+  - trash can
+  - garbage bin
+  - fire extinguisher
+
+  # Animals
+  - dog
+  - cat

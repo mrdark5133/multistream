@@ -1,0 +1,40 @@
+# Environment & Secrets
+.env
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Large Files & Video Assets (Do NOT commit)
+footage/
+live_footage/
+*.mp4
+*.avi
+*.mkv
+*.mov
+
+# Models & Weights (Downloaded at runtime)
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+models/
+
+# Indexes and Generated Snapshots
+index_*/
+snapshots/
+clips/
+
+# Evaluation outputs & scratch
+eval/results/
+scratch/
+.idea/
+.vscode/
