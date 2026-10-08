@@ -1,0 +1,188 @@
+{
+  "merges": [
+    {
+      "i": 2,
+      "j": 8,
+      "base_id": 23,
+      "cand_id": 40,
+      "label": "person",
+      "group": "person",
+      "gap_s": 0.541,
+      "center_dist": 0.0895,
+      "cosine_sim": 0.8959,
+      "clip": "footage/test_video01.mp4",
+      "base_snapshot": "snapshots/test_video01/track_23.jpg",
+      "cand_snapshot": "snapshots/test_video01/track_40.jpg"
+    },
+    {
+      "i": 13,
+      "j": 21,
+      "base_id": 80,
+      "cand_id": 165,
+      "label": "car",
+      "group": "vehicle",
+      "gap_s": 0.0,
+      "center_dist": 0.1864,
+      "cosine_sim": 0.9054,
+      "clip": "footage/test_landscape.mp4",
+      "base_snapshot": "snapshots/test_landscape/track_80.jpg",
+      "cand_snapshot": "snapshots/test_landscape/track_165.jpg"
+    },
+    {
+      "i": 16,
+      "j": 34,
+      "base_id": 108,
+      "cand_id": 388,
+      "label": "car",
+      "group": "vehicle",
+      "gap_s": 1.802,
+      "center_dist": 0.0584,
+      "cosine_sim": 0.9051,
+      "clip": "footage/test_landscape.mp4",
+      "base_snapshot": "snapshots/test_landscape/track_108.jpg",
+      "cand_snapshot": "snapshots/test_landscape/track_388.jpg"
+    },
+    {
+      "i": 27,
+      "j": 41,
+      "base_id": 260,
+      "cand_id": 464,
+      "label": "person",
+      "group": "person",
+      "gap_s": 1.268,
+      "center_dist": 0.0568,
+      "cosine_sim": 0.8765,
+      "clip": "footage/test_landscape.mp4",
+      "base_snapshot": "snapshots/test_landscape/track_260.jpg",
+      "cand_snapshot": "snapshots/test_landscape/track_464.jpg"
+    },
+    {
+      "i": 7,
+      "j": 36,
+      "base_id": 8,
+      "cand_id": 413,
+      "label": "person",
+      "group": "person",
+      "gap_s": 1.936,
+      "center_dist": 0.0409,
+      "cosine_sim": 0.8282,
+      "clip": "footage/test_landscape.mp4",
+      "base_snapshot": "snapshots/test_landscape/track_8.jpg",
+      "cand_snapshot": "snapshots/test_landscape/track_413.jpg"
+    },
+    {
+      "i": 16,
+      "j": 17,
+      "base_id": 286,
+      "cand_id": 349,
+      "label": "car",
+      "group": "vehicle",
+      "gap_s": 1.668,
+      "center_dist": 0.003,
+      "cosine_sim": 0.8843,
+      "clip": "footage/test_landscape2.mp4",
+      "base_snapshot": "snapshots/test_landscape2/track_286.jpg",
+      "cand_snapshot": "snapshots/test_landscape2/track_349.jpg"
+    },
+    {
+      "i": 9,
+      "j": 19,
+      "base_id": 102,
+      "cand_id": 379,
+      "label": "person",
+      "group": "person",
+      "gap_s": 1.335,
+      "center_dist": 0.0164,
+      "cosine_sim": 0.8742,
+      "clip": "footage/test_landscape2.mp4",
+      "base_snapshot": "snapshots/test_landscape2/track_102.jpg",
+      "cand_snapshot": "snapshots/test_landscape2/track_379.jpg"
+    },
+    {
+      "i": 13,
+      "j": 14,
+      "base_id": 163,
+      "cand_id": 242,
+      "label": "person",
+      "group": "person",
+      "gap_s": 1.802,
+      "center_dist": 0.1445,
+      "cosine_sim": 0.8619,
+      "clip": "footage/test_landscape2.mp4",
+      "base_snapshot": "snapshots/test_landscape2/track_163.jpg",
+      "cand_snapshot": "snapshots/test_landscape2/track_242.jpg"
+    }
+  ],
+  "stats": {
+    "footage/test_video01.mp4": {
+      "real_n": 1,
+      "after_filter": 9,
+      "after_stitch": 8,
+      "merges": 1,
+      "ratio_filtered": 9.0,
+      "ratio_stitched": 8.0,
+      "dropped": {
+        "duration": 10,
+        "hits": 0,
+        "mean_conf": 0,
+        "total_dropped": 10
+      }
+    },
+    "footage/test_video02.mp4": {
+      "real_n": 1,
+      "after_filter": 1,
+      "after_stitch": 1,
+      "merges": 0,
+      "ratio_filtered": 1.0,
+      "ratio_stitched": 1.0,
+      "dropped": {
+        "duration": 1,
+        "hits": 0,
+        "mean_conf": 0,
+        "total_dropped": 1
+      }
+    },
+    "footage/test_video03.mp4": {
+      "real_n": 3,
+      "after_filter": 7,
+      "after_stitch": 7,
+      "merges": 0,
+      "ratio_filtered": 2.33,
+      "ratio_stitched": 2.33,
+      "dropped": {
+        "duration": 16,
+        "hits": 1,
+        "mean_conf": 0,
+        "total_dropped": 17
+      }
+    },
+    "footage/test_landscape.mp4": {
+      "real_n": 8,
+      "after_filter": 44,
+      "after_stitch": 40,
+      "merges": 4,
+      "ratio_filtered": 5.5,
+      "ratio_stitched": 5.0,
+      "dropped": {
+        "duration": 26,
+        "hits": 2,
+        "mean_conf": 0,
+        "total_dropped": 28
+      }
+    },
+    "footage/test_landscape2.mp4": {
+      "real_n": 6,
+      "after_filter": 26,
+      "after_stitch": 23,
+      "merges": 3,
+      "ratio_filtered": 4.33,
+      "ratio_stitched": 3.83,
+      "dropped": {
+        "duration": 16,
+        "hits": 0,
+        "mean_conf": 0,
+        "total_dropped": 16
+      }
+    }
+  }
+}

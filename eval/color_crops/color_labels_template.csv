@@ -1,0 +1,31 @@
+crop_id,file_path,clip_source,detected_label,my_color_label,lab_kmeans_top2,siglip_top1
+crop_01,eval/color_crops/crop_01.jpg,footage/test_landscape.mp4,car,,"grey:0.69, black:0.31",black
+crop_02,eval/color_crops/crop_02.jpg,footage/test_landscape.mp4,car,,"grey:0.55, black:0.45",black
+crop_03,eval/color_crops/crop_03.jpg,footage/test_landscape.mp4,bus,,"grey:0.64, black:0.18",white
+crop_04,eval/color_crops/crop_04.jpg,footage/test_landscape.mp4,car,,"grey:0.54, black:0.47",black
+crop_05,eval/color_crops/crop_05.jpg,footage/test_landscape.mp4,car,,"grey:0.65, silver:0.35",grey
+crop_06,eval/color_crops/crop_06.jpg,footage/test_landscape.mp4,truck,,"grey:0.68, black:0.20",red
+crop_07,eval/color_crops/crop_07.jpg,footage/test_landscape.mp4,car,,"grey:0.46, black:0.29",grey
+crop_08,eval/color_crops/crop_08.jpg,footage/test_landscape.mp4,truck,,"grey:0.69, silver:0.30",white
+crop_09,eval/color_crops/crop_09.jpg,footage/test_landscape.mp4,car,,"grey:0.79, black:0.21",black
+crop_10,eval/color_crops/crop_10.jpg,footage/test_landscape.mp4,car,,"grey:0.81, black:0.19",black
+crop_11,eval/color_crops/crop_11.jpg,footage/test_landscape2.mp4,car,,"black:0.72, grey:0.28",yellow
+crop_12,eval/color_crops/crop_12.jpg,footage/test_landscape2.mp4,car,,black:1.00,black
+crop_13,eval/color_crops/crop_13.jpg,footage/test_landscape2.mp4,car,,"black:0.61, grey:0.39",yellow
+crop_14,eval/color_crops/crop_14.jpg,footage/test_landscape2.mp4,car,,"black:0.73, grey:0.27",white
+crop_15,eval/color_crops/crop_15.jpg,footage/test_landscape2.mp4,person,,"black:0.61, black:0.61",black
+crop_16,eval/color_crops/crop_16.jpg,footage/test_landscape2.mp4,person,,"black:0.56, black:0.56",black
+crop_17,eval/color_crops/crop_17.jpg,footage/test_landscape2.mp4,car,,black:1.00,black
+crop_18,eval/color_crops/crop_18.jpg,footage/test_landscape2.mp4,person,,"grey:0.60, grey:0.56",white
+crop_19,eval/color_crops/crop_19.jpg,footage/test_landscape2.mp4,person,,"black:0.67, black:0.67",white
+crop_20,eval/color_crops/crop_20.jpg,footage/test_landscape2.mp4,person,,"black:0.59, black:0.59",white
+crop_21,eval/color_crops/crop_21.jpg,footage/test_video01.mp4,person,,"grey:0.60, silver:0.42",white
+crop_22,eval/color_crops/crop_22.jpg,footage/test_video01.mp4,person,,"silver:0.55, silver:0.55",white
+crop_23,eval/color_crops/crop_23.jpg,footage/test_video01.mp4,person,,"silver:0.57, silver:0.51",white
+crop_24,eval/color_crops/crop_24.jpg,footage/test_video01.mp4,person,,"grey:0.65, grey:0.58",grey
+crop_25,eval/color_crops/crop_25.jpg,footage/test_video01.mp4,truck,,"grey:0.95, silver:0.05",black
+crop_26,eval/color_crops/crop_26.jpg,footage/test_video03.mp4,motorcycle,,"grey:0.78, silver:0.22",white
+crop_27,eval/color_crops/crop_27.jpg,footage/test_video03.mp4,person,,"grey:0.88, grey:0.74",blue
+crop_28,eval/color_crops/crop_28.jpg,footage/test_video03.mp4,person,,"grey:0.91, grey:0.86",red
+crop_29,eval/color_crops/crop_29.jpg,footage/test_video03.mp4,motorcycle,,"grey:0.47, silver:0.28",white
+crop_30,eval/color_crops/crop_30.jpg,footage/test_video03.mp4,person,,"grey:0.92, grey:0.56",orange

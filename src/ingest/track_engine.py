@@ -268,43 +268,31 @@ def stitch_tracks(
     Merge same-group tracks with:
     - 0 <= gap <= max_gap_s
     - normalized center distance <= max_center_dist
-    - embedding cosine similarity >= min_cosine_sim
+    - embedding cosine similarity >= 0.88 for vehicle group, >= min_cosine_sim (0.80) for others
+    - Strictly one-to-one merges: a track can have at most one successor and at most one predecessor.
     Returns merged tracks, updated embeddings, and list of merge details.
     """
     if len(tracks) <= 1:
         return tracks, track_embs, []
 
-    merged_tracks: List[TrackState] = []
-    merged_embs: List[np.ndarray] = []
-    merge_logs: List[Dict[str, Any]] = []
-
-    # Work with mutable lists
-    current_tracks = list(tracks)
-    current_embs = list(track_embs)
-    merged_indices = set()
-
-    for i in range(len(current_tracks)):
-        if i in merged_indices:
-            continue
-        base_track = current_tracks[i]
-        base_emb = current_embs[i]
+    # Find all valid candidate pairs
+    candidate_pairs = []
+    for i in range(len(tracks)):
+        base_track = tracks[i]
+        base_emb = track_embs[i]
         base_group = get_object_group(base_track.get_voted_label())
+        required_thresh = 0.88 if base_group == "vehicle" else min_cosine_sim
 
-        for j in range(i + 1, len(current_tracks)):
-            if j in merged_indices:
-                continue
-            cand_track = current_tracks[j]
+        for j in range(i + 1, len(tracks)):
+            cand_track = tracks[j]
             cand_group = get_object_group(cand_track.get_voted_label())
-
             if base_group != cand_group:
                 continue
 
-            # Gap check: cand start minus base end
             gap_s = cand_track.observations[0].offset_s - base_track.observations[-1].offset_s
             if not (0.0 <= gap_s <= max_gap_s):
                 continue
 
-            # Center distance check
             b_last_box = base_track.observations[-1].bbox_norm
             c_first_box = cand_track.observations[0].bbox_norm
             bc_x = (b_last_box[0] + b_last_box[2]) / 2.0
@@ -315,14 +303,14 @@ def stitch_tracks(
             if center_dist > max_center_dist:
                 continue
 
-            # Embedding cosine similarity
-            cand_emb = current_embs[j]
+            cand_emb = track_embs[j]
             cos_sim = float(np.dot(base_emb, cand_emb))
-            if cos_sim < min_cosine_sim:
+            if cos_sim < required_thresh:
                 continue
 
-            # MATCH! Merge cand_track into base_track
-            merge_logs.append({
+            candidate_pairs.append({
+                "i": i,
+                "j": j,
                 "base_id": base_track.track_id,
                 "cand_id": cand_track.track_id,
                 "label": base_track.get_voted_label(),
@@ -332,20 +320,48 @@ def stitch_tracks(
                 "cosine_sim": round(cos_sim, 4)
             })
 
-            # Merge observations
-            base_track.observations.extend(cand_track.observations)
-            base_track.labels.extend(cand_track.labels)
-            base_track.confs.extend(cand_track.confs)
+    # Sort pairs by cosine similarity descending for greedy optimal matching
+    candidate_pairs.sort(key=lambda x: x["cosine_sim"], reverse=True)
 
-            # Update embedding with normalized average
-            new_emb = (base_emb + cand_emb) / 2.0
-            norm = np.linalg.norm(new_emb)
-            if norm > 0:
-                base_emb = (new_emb / norm).astype(np.float32)
+    has_successor = set()    # Base tracks that have already been assigned a successor
+    has_predecessor = set()  # Candidate tracks that have already been assigned a predecessor
+    selected_pairs = []
 
-            merged_indices.add(j)
+    for p in candidate_pairs:
+        i, j = p["i"], p["j"]
+        if i not in has_successor and j not in has_predecessor:
+            has_successor.add(i)
+            has_predecessor.add(j)
+            selected_pairs.append(p)
 
-        merged_tracks.append(base_track)
-        merged_embs.append(base_emb)
+    # Perform the merges
+    merged_tracks_dict = {i: tracks[i] for i in range(len(tracks))}
+    merged_embs_dict = {i: track_embs[i] for i in range(len(track_embs))}
+    absorbed_indices = set()
+    merge_logs = []
 
-    return merged_tracks, merged_embs, merge_logs
+    for p in selected_pairs:
+        i, j = p["i"], p["j"]
+        base_track = merged_tracks_dict[i]
+        cand_track = merged_tracks_dict[j]
+        base_emb = merged_embs_dict[i]
+        cand_emb = merged_embs_dict[j]
+
+        # Merge observations
+        base_track.observations.extend(cand_track.observations)
+        base_track.labels.extend(cand_track.labels)
+        base_track.confs.extend(cand_track.confs)
+
+        # Average and re-normalize embedding
+        new_emb = (base_emb + cand_emb) / 2.0
+        norm = np.linalg.norm(new_emb)
+        if norm > 0:
+            merged_embs_dict[i] = (new_emb / norm).astype(np.float32)
+
+        absorbed_indices.add(j)
+        merge_logs.append(p)
+
+    final_tracks = [merged_tracks_dict[i] for i in range(len(tracks)) if i not in absorbed_indices]
+    final_embs = [merged_embs_dict[i] for i in range(len(tracks)) if i not in absorbed_indices]
+
+    return final_tracks, final_embs, merge_logs
