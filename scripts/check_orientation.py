@@ -1,6 +1,7 @@
 import cv2
 from pathlib import Path
 
+print(f"OpenCV version: {cv2.__version__}")
 out_dir = Path("footage/orientation_check")
 out_dir.mkdir(parents=True, exist_ok=True)
 

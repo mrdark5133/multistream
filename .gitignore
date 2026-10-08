@@ -17,6 +17,7 @@ footage/*
 !footage/crops_contact_sheet.jpg
 !footage/orientation_check/
 !footage/orientation_check/*
+footage/_invalid_test_gate/
 live_footage/
 *.mp4
 *.avi

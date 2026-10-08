@@ -29,6 +29,8 @@ Rules: Check a box ONLY when the acceptance test for that task has passed. Inclu
 - [ ] 1.8 CLI tool `scripts/ingest.py` logging duration, tracks, frames, wall time, VRAM
 - [ ] 1.9 Multi-video tracker isolation test preventing track state leakage
 - [ ] 1.10 Video rotation normalization: read rotation metadata per video (tags/side data), apply rotation before detection/embedding, and store applied rotation in `videos` record
+- [ ] 1.11 Benchmark image tower only (3 warm-up + 20 timed runs, batch sizes 1/8/16, both embedders: SigLIP-Base and SigLIP-SO400M) on crops extracted from upright clips (`test_video01-03.mp4`)
+- [ ] 1.12 NVML free-VRAM guard check before each model load, and execute YOLO `set_classes` on CPU or explicitly delete/free CLIP text encoder (+443 MiB) afterward
 - [ ] Phase 1 Report generated and approved (`REPORTS/PHASE_1_REPORT.md`)
 
 ---

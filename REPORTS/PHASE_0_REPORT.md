@@ -1,7 +1,7 @@
 # Phase 0 Report: Environment, Docs, Model Feasibility
 Status: PASSED WITH CAVEATS
-Date/time: 2026-10-08T16:10:00+05:30
-Parent commit: af6b4ff814b91e02312b76b9dde888e5b671f03b
+Date/time: 2026-10-08T16:30:00+05:30
+Parent commit: 45d13cf8fa6348a79dc2da6e47e5e59c1bd9bdf3
 
 ## 1. Summary
 Phase 0 verified the laptop environment, established all foundational planning documents, measured GPU VRAM under multiple desktop states, profiled standalone YOLO-World inference latency and memory on upright footage, and measured empirical co-existence of both SigLIP-SO400M and SigLIP-Base on real upright test clips (`test_video01.mp4`, `test_video02.mp4`, `test_video03.mp4`). 
@@ -180,6 +180,17 @@ foreach ($f in @("footage/test_video01.mp4", "footage/test_video02.mp4", "footag
     ]
 }
 ```
+
+```powershell
+.\.venv\Scripts\python.exe scripts/check_orientation.py
+```
+**Raw Output**:
+```
+OpenCV version: 5.0.0
+Decoded footage/test_video01.mp4: shape=(478x850), auto_rotate_prop=1.0, saved=footage\orientation_check\frame_test_video01.jpg
+Decoded footage/test_video02.mp4: shape=(478x850), auto_rotate_prop=1.0, saved=footage\orientation_check\frame_test_video02.jpg
+Decoded footage/test_video03.mp4: shape=(478x850), auto_rotate_prop=1.0, saved=footage\orientation_check\frame_test_video03.jpg
+```
 *(Analysis: All three valid video clips contain no stream_side_data rotation and no stream_tags rotate metadata (rotation = 0°). Decoded using OpenCV 5.0.0 (`cv2.VideoCapture`) with `CAP_PROP_ORIENTATION_AUTO = 1.0`. Extracted frames were verified upright and saved to `footage/orientation_check/frame_test_video01.jpg`, `frame_test_video02.jpg`, `frame_test_video03.jpg`.)*
 
 ### Command 4: Condition (b) Measurement: "app windows closed, background processes still running" (`scripts/measure_condition_b.py`)
@@ -210,7 +221,7 @@ CONDITION (B) MEASUREMENT & GAP ANALYSIS
 3. Gap Analysis (5-sample average vs PyTorch query):
    nvidia-smi 5-sample avg: Total=4094.0 MiB, Used=670.0 MiB, Free=3223.0 MiB
    torch.cuda.mem_get_info : Free=3250.2 MB, Total=4093.5 MB
-   Discrepancy (PyTorch free - nvidia-smi free): +27.2 MB
+   Discrepancy (PyTorch free - nvidia-smi free): +27.2 MB (Coincidental gap; see analysis below)
 
 4. Tensor Allocation Measurement (100 MB steps until failure):
    Allocated 500 MB | nvidia-smi: Used=1227.0 MiB, Free=2666.0 MiB
@@ -249,7 +260,13 @@ CONDITION (B) MEASUREMENT & GAP ANALYSIS
    Result: PyTorch successfully allocated 11677.0 MB MORE than physical nvidia-smi free VRAM.
    Explanation: Under Windows WDDM, the OS kernel virtualizes and overcommits VRAM, paging excess buffers to host RAM/pagefile rather than failing at the physical VRAM boundary.
 
-5. Raw nvidia-smi Output and Process List:
+5. Critical Analysis of torch.cuda.mem_get_info Unreliability:
+   - Static Output Across Variable Loads: In three separate runs with completely different background process loads (Condition a with all apps open, Condition b with apps closed, and mid-benchmark), `torch.cuda.mem_get_info` returned identically 3250.20 MB free.
+   - Coincidental Idle Gap: The +27.2 MB gap at idle (3250.20 MB vs 3223.0 MiB 5-sample average) was purely coincidental and does not reflect actual available GPU headroom.
+   - Constant Deficit Under Load: As measured in the ballast test (Command 5 Step 8), under active GPU load `mem_get_info` consistently reads a constant ~310 MiB below `nvidia-smi` free (e.g. 1512.2 MB vs 1822.0 MiB free at Step 1, 712.2 MB vs 1022.0 MiB free at Step 5).
+   - Architectural Policy: Because `mem_get_info` is uncalibrated and blind to external process allocations, all VRAM budgeting, allocation guards, and pre-flight checks in Phase 1 and beyond must use NVML / `nvidia-smi`, not `mem_get_info`.
+
+6. Raw nvidia-smi Output and Process List:
 Thu Oct  8 15:29:20 2026       
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 617.14                 KMD Version: 617.14        CUDA UMD Version: 13.4     |
@@ -321,30 +338,53 @@ PHASE 0 FIX-UP 3: COMPREHENSIVE BENCHMARK ON NEW UPRIGHT FOOTAGE
   Total valid crops extracted: 75
   Category breakdown: {'person': 23, 'other': 44, 'hat': 8}
   Contact sheet saved to: footage\crops_contact_sheet.jpg
+  
+  [Dataset & Labeling Caveats]:
+  - Nature of Labels: Crop labels are automated YOLO-World detections from vocab.yaml, NOT human ground-truth. Small crops suffer automated misclassifications: notably crops ID02 (t=1.0s, labeled 'semi-truck') and ID14 (t=1.5s, labeled 'suv') in test_video01.mp4 actually contain a pedestrian / person.
+  - Repeated Detections: Extracted crops across timestamps (0.5s-2.0s intervals) are repeated detections of the same physical objects across frames (n=75 is NOT 75 independent samples). Across the 3 clips, there are ~4-5 unique pedestrians, 1 motorcyclist with helmet, and ~4 vehicles (~10 unique physical objects total).
 
 --- 3. Semantic Similarity & Retrieval on Upright Crops (SigLIP-Base) ---
 Loading weights: 100%|##########| 408/408 [00:00<00:00, 634.64it/s]
-  variant_1_bare          : 13/75 top-1 (17.3%) | Per-class: {'person': (9, 23, 39.1%), 'other': (1, 44, 2.3%), 'hat': (3, 8, 37.5%)}
-  variant_2_photo_of      : 19/75 top-1 (25.3%) | Per-class: {'person': (15, 23, 65.2%), 'other': (0, 44, 0.0%), 'hat': (4, 8, 50.0%)}
-  variant_3_descriptive   : 23/75 top-1 (30.7%) | Per-class: {'person': (19, 23, 82.6%), 'other': (0, 44, 0.0%), 'hat': (4, 8, 50.0%)}
-  variant_4_composite     : 27/75 top-1 (36.0%) | Per-class: {'person': (20, 23, 87.0%), 'other': (0, 44, 0.0%), 'hat': (7, 8, 87.5%)}
+  Target Mapping for 'other' class (44 crops):
+    - variant_1_bare        target: "a tree or plant"          -> scores 1/44 top-1 (2.3%)
+    - variant_2_photo_of    target: "a photo of a tree or plant" -> scores 0/44 top-1 (0.0%)
+    - variant_3_descriptive target: "a leafy tree or plant"    -> scores 0/44 top-1 (0.0%)
+    - variant_4_composite   target: "a roadside tree or bush"  -> scores 0/44 top-1 (0.0%)
+    Explanation: The 44 'other' crops were vehicle/street detections unmapped to candidate targets in the 7-item set. Because they evaluated against plant/tree distractors, they score 0/44 in variants 2-4 and are reported separately.
+
+  Top-1 Accuracy on Mapped Targets (Person + Hat only, n=31; Person N=23, Hat N=8):
+    - variant_1_bare        : 12/31 top-1 (38.7%) | Person: 9/23 (39.1%), Hat: 3/8 (37.5%)
+    - variant_2_photo_of    : 19/31 top-1 (61.3%) | Person: 15/23 (65.2%), Hat: 4/8 (50.0%)
+    - variant_3_descriptive : 23/31 top-1 (74.2%) | Person: 19/23 (82.6%), Hat: 4/8 (50.0%)
+    - variant_4_composite   : 27/31 top-1 (87.1%) | Person: 20/23 (87.0%), Hat: 7/8 (87.5%)
 
 --- 4. Retrieval-Style Test (Precision@k, Recall@k, Chance Level, ROC-AUC) ---
-  Concept: PERSON (N=23/75, Chance Level=30.7%) | ROC-AUC=0.8152
-    Top-1 : Precision=100.0% | Recall=  4.3%
-    Top-3 : Precision= 66.7% | Recall=  8.7%
-    Top-5 : Precision= 80.0% | Recall= 17.4%
-    Top-10: Precision= 70.0% | Recall= 30.4%
-  Concept: BAG    (N=0/75, Chance Level=0.0%) | ROC-AUC=0.5000
-    Top-1 : Precision=  0.0% | Recall=  0.0%
-    Top-3 : Precision=  0.0% | Recall=  0.0%
-    Top-5 : Precision=  0.0% | Recall=  0.0%
-    Top-10: Precision=  0.0% | Recall=  0.0%
-  Concept: HAT    (N=8/75, Chance Level=10.7%) | ROC-AUC=0.9683
-    Top-1 : Precision=100.0% | Recall= 12.5%
-    Top-3 : Precision= 66.7% | Recall= 25.0%
-    Top-5 : Precision= 80.0% | Recall= 50.0%
-    Top-10: Precision= 60.0% | Recall= 75.0%
+  Evaluation 1: Bare Prompt Queries (Variant 1):
+    Query: "a person" for PERSON (N=23/75, Chance Level=30.7%) | ROC-AUC=0.8177
+      Top-1 : Precision=100.0% | Recall=  4.3%  (Note: P@1=100% is exactly 1 retrieved item at k=1)
+      Top-3 : Precision= 66.7% | Recall=  8.7%
+      Top-5 : Precision= 80.0% | Recall= 17.4%
+      Top-10: Precision= 80.0% | Recall= 34.8%
+    Query: "a hat" for HAT (N=8/75, Chance Level=10.7%) | ROC-AUC=0.9664
+      Top-1 : Precision=100.0% | Recall= 12.5%  (Note: P@1=100% is exactly 1 retrieved item at k=1)
+      Top-3 : Precision= 66.7% | Recall= 25.0%
+      Top-5 : Precision= 80.0% | Recall= 50.0%
+      Top-10: Precision= 60.0% | Recall= 75.0%
+    Query: "a bag" for BAG (N=0/75, Chance Level=0.0%) | ROC-AUC=N/A | Status: UNTESTED
+      Top-1..10: Precision=0.0% | Recall=0.0% (N=0 positive instances present in footage; ROC-AUC is undefined/NA, not 0.5000)
+
+  Evaluation 2: Composite Prompt Queries (Variant 4 Re-run for Person and Hat):
+    Query: "a walking person" for PERSON (N=23/75, Chance Level=30.7%) | ROC-AUC=0.8779
+      Top-1 : Precision=100.0% | Recall=  4.3%  (Note: P@1=100% is exactly 1 retrieved item at k=1)
+      Top-3 : Precision=100.0% | Recall= 13.0%
+      Top-5 : Precision=100.0% | Recall= 21.7%
+      Top-10: Precision= 90.0% | Recall= 39.1%
+    Query: "a headwear hat or cap" for HAT (N=8/75, Chance Level=10.7%) | ROC-AUC=0.9627
+      Top-1 : Precision=100.0% | Recall= 12.5%  (Note: P@1=100% is exactly 1 retrieved item at k=1)
+      Top-3 : Precision= 66.7% | Recall= 25.0%
+      Top-5 : Precision= 60.0% | Recall= 37.5%
+      Top-10: Precision= 60.0% | Recall= 75.0%
+    Query: "a carried handbag or tote bag" for BAG (N=0/75) | ROC-AUC=N/A | Status: UNTESTED
 
 --- 5. Orientation Ablation: Upright vs 180° Inverted ---
   test_video01_1s : Upright Detections =  7 | Rotated 180° Detections =  0
@@ -384,7 +424,8 @@ git log --format="%h | %an <%ae> | %s" -n 5
 ```
 **Raw Output**:
 ```
-af6b4ff814b91e02312b76b9dde888e5b671f03b
+45d13cf8fa6348a79dc2da6e47e5e59c1bd9bdf3
+45d13cf | harivarman-007 <harivarman124@gmail.com> | phase0: Phase 0 Fix-up 3 orientation checks, upright benchmarks, and report
 af6b4ff | harivarman-007 <harivarman124@gmail.com> | phase0: Phase 0 Fix-up 2 real measurements, contact sheet, and report
 455a4cb | harivarman-007 <harivarman124@gmail.com> | phase0: incorporate reviewer fix-ups, standalone detector benchmarks, and clean condition b data
 e98113d | harivarman-007 <harivarman124@gmail.com> | phase0: record empirical model feasibility measurements and report
@@ -398,8 +439,8 @@ e98113d | harivarman-007 <harivarman124@gmail.com> | phase0: record empirical mo
 | Total VRAM | Command 1 (`nvidia-smi`) | 4094 MiB |
 | Condition (a) Free VRAM (all apps open) | Command 1 (`nvidia-smi`) | 2481 MiB (used: 1412 MiB) |
 | Condition (b) Free VRAM ("app windows closed, background processes running") | Command 4 (`nvidia-smi`) | **3223.0 MiB** (avg used: 670.0 MiB) |
-| `torch.cuda.mem_get_info` Free / Total | Command 4 (`mem_get_info`) | **3250.20 MB** / 4093.50 MB |
-| Gap Analysis (mem_get_info vs 5-sample avg free) | Command 4 | **+27.2 MB** |
+| `torch.cuda.mem_get_info` Free / Total | Command 4 (`mem_get_info`) | **3250.20 MB** / 4093.50 MB *(Unreliable: returned identical 3250.20 MB across 3 runs with different background loads; +27.2 MB gap at idle was coincidental; reads constant ~310 MiB below nvidia-smi under load; all guards will use NVML)* |
+| Gap Analysis (mem_get_info vs 5-sample avg free) | Command 4 | **+27.2 MB** *(coincidental idle offset)* |
 | PyTorch Allocatable Tensor Memory | Command 4 (100 MB steps) | **14,900 MB** (WDDM overcommit before OOM) |
 | Video duration (`test_video01.mp4`) | Command 3 (`ffprobe`) | **4.266667 s** (478x850, 30.00 fps, upright) |
 | Video duration (`test_video02.mp4`) | Command 3 (`ffprobe`) | **9.133333 s** (478x850, 30.00 fps, upright) |
@@ -408,13 +449,15 @@ e98113d | harivarman-007 <harivarman124@gmail.com> | phase0: record empirical mo
 | Orientation Ablation Impact (Upright vs 180° Inverted) | Command 5 | **84.6% drop in detections** (13 upright vs 2 inverted) |
 | Co-load SigLIP-Base on Upright Frame (Windows closed) | Command 5 (`nvidia-smi`) | **1670.0 MiB used** / 2223.0 MiB free (Peak Torch: 1086.1 MB) |
 | Co-load SigLIP-SO400M on Upright Frame (Windows closed) | Command 5 (`nvidia-smi`) | **3037.0 MiB used** / 856.0 MiB free (Peak Torch: 2381.2 MB) |
-| SigLIP-Base Top-1 Accuracy: Bare words (7 candidates) | Command 5 | **17.3%** overall (Person: 39.1%, Hat: 37.5%, Other: 2.3%) |
-| SigLIP-Base Top-1 Accuracy: 'A photo of' (7 candidates) | Command 5 | **25.3%** overall (Person: 65.2%, Hat: 50.0%, Other: 0.0%) |
-| SigLIP-Base Top-1 Accuracy: Descriptive (7 candidates) | Command 5 | **30.7%** overall (Person: 82.6%, Hat: 50.0%, Other: 0.0%) |
-| SigLIP-Base Top-1 Accuracy: Composite (7 candidates) | Command 5 | **36.0%** overall (Person: 87.0%, Hat: 87.5%, Other: 0.0%) |
-| Retrieval ROC-AUC (Concept: `person`, N=23/75) | Command 5 | **0.8152** (Chance: 30.7%, P@1: 100%, P@5: 80%, R@5: 17.4%, R@10: 30.4%) |
-| Retrieval ROC-AUC (Concept: `hat`, N=8/75) | Command 5 | **0.9683** (Chance: 10.7%, P@1: 100%, P@5: 80%, R@5: 50.0%, R@10: 75.0%) |
-| Retrieval ROC-AUC (Concept: `bag`, N=0/75) | Command 5 | **0.5000** (Chance: 0.0%, no bag instances present in clips) |
+| SigLIP-Base Top-1 Accuracy: Bare words (7 candidates) | Command 5 | **38.7%** (person+hat only, $n=31$: Person 9/23 [39.1%], Hat 3/8 [37.5%]). *'Other' ($n=44$, unmapped vehicles/distractors evaluated against target "a tree or plant"): 1/44 (2.3%)* |
+| SigLIP-Base Top-1 Accuracy: 'A photo of' (7 candidates) | Command 5 | **61.3%** (person+hat only, $n=31$: Person 15/23 [65.2%], Hat 4/8 [50.0%]). *'Other' ($n=44$, unmapped, target "a photo of a tree or plant"): 0/44 (0.0%)* |
+| SigLIP-Base Top-1 Accuracy: Descriptive (7 candidates) | Command 5 | **74.2%** (person+hat only, $n=31$: Person 19/23 [82.6%], Hat 4/8 [50.0%]). *'Other' ($n=44$, unmapped, target "a leafy tree or plant"): 0/44 (0.0%)* |
+| SigLIP-Base Top-1 Accuracy: Composite (7 candidates) | Command 5 | **87.1%** (person+hat only, $n=31$: Person 20/23 [87.0%], Hat 7/8 [87.5%]). *'Other' ($n=44$, unmapped, target "a roadside tree or bush"): 0/44 (0.0%)* |
+| Retrieval: `person` query "a person" (Bare) | Command 5 | ROC-AUC: **0.8177** (Chance: 30.7%, P@1: 100% [1 item], P@5: 80.0%, R@5: 17.4%, P@10: 80.0%, R@10: 34.8%) |
+| Retrieval: `person` query "a walking person" (Composite) | Command 5 | ROC-AUC: **0.8779** (Chance: 30.7%, P@1: 100% [1 item], P@3: 100%, P@5: 100%, R@5: 21.7%, P@10: 90.0%, R@10: 39.1%) |
+| Retrieval: `hat` query "a hat" (Bare) | Command 5 | ROC-AUC: **0.9664** (Chance: 10.7%, P@1: 100% [1 item], P@5: 80.0%, R@5: 50.0%, P@10: 60.0%, R@10: 75.0%) |
+| Retrieval: `hat` query "a headwear hat or cap" (Composite) | Command 5 | ROC-AUC: **0.9627** (Chance: 10.7%, P@1: 100% [1 item], P@3: 66.7%, P@5: 60.0%, R@5: 37.5%, P@10: 60.0%, R@10: 75.0%) |
+| Retrieval: `bag` query ("a bag" / "a carried handbag...") | Command 5 | **UNTESTED** (ROC-AUC: **N/A**; $N=0$ positive bag instances in clips) |
 | Contact Sheet of Extracted Crops (N=75) | Command 5 | Saved to `footage/crops_contact_sheet.jpg` |
 
 ## 6. Acceptance tests
@@ -427,12 +470,12 @@ e98113d | harivarman-007 <harivarman124@gmail.com> | phase0: record empirical mo
 | Clean Condition (b) Measurement | `python scripts/measure_condition_b.py` | 5 samples 2s apart + mem_get_info | 5 samples (avg 3223.0 MiB free), +27.2 MB gap, 14,900 MB alloc | PASS |
 | Orientation Check & Invalidation | `scripts/check_orientation.py` | Video01-03 upright, test_gate marked INVALID | 3 clips upright, test_gate.mp4 dropped (84.6% ablation drop) | PASS |
 | Upright Co-load Profiling | `python scripts/benchmark_new_footage.py` | Both models profiled on upright frame | Base: 1670 MiB used, SO400M: 3037 MiB used | PASS |
-| Semantic Similarity & Retrieval | `python scripts/benchmark_new_footage.py` | Real crops ranked, contact sheet saved | Person AUC: 0.8152, Hat AUC: 0.9683, Bag: N=0, Contact sheet saved | PARTIAL |
+| Semantic Similarity & Retrieval | `python scripts/benchmark_new_footage.py` | Real crops ranked, contact sheet saved | Person AUC: 0.8779 (composite) / 0.8177 (bare), Hat AUC: 0.9627 / 0.9664, Bag: N=0 (UNTESTED, AUC=N/A), Contact sheet saved | PARTIAL |
 | LLM Providers Key Check | `python scripts/check_env.py` | Report present/missing without secrets | Reported MISSING for Anthropic & Gemini (NOT RUN) | PASS |
-| Planning Docs Exist & Updated | `Get-ChildItem PLAN.md, TASKS.md, ...` | All files present, Phase 1 rotation added | All core files present, Task 1.10 added | PASS |
+| Planning Docs Exist & Updated | `Get-ChildItem PLAN.md, TASKS.md, ...` | All files present, Phase 1 tasks added | All core files present, Tasks 1.10-1.12 added | PASS |
 | Environment Check Script | `python scripts/check_env.py` | Exit code 0 | Exit code 0 | PASS |
 
-*(Note on Semantic Similarity Ranking: Marked PARTIAL because while upright retrieval achieves strong discriminability on persons (AUC=0.8152, Top-1 Precision=100%) and hats/helmets (AUC=0.9683, Top-1 Precision=100%), the three video clips lack ground-truth bag instances (N=0), and single bare nouns ("a person") achieve lower top-1 accuracy (17.3%) than composite action phrases (36.0% overall, 87.0% on person crops). Composite prompt construction must be utilized in Phase 2 query search.)*
+*(Note on Semantic Similarity Ranking: Marked PARTIAL because while upright retrieval achieves strong discriminability on persons (AUC=0.8779 composite, Top-1 Precision=100% [1 item]) and hats/helmets (AUC=0.9627 composite, Top-1 Precision=100% [1 item]), the three video clips lack ground-truth bag instances (N=0, rendering bag retrieval UNTESTED with ROC-AUC N/A). For top-1 classification accuracy, bare nouns ("a person") achieve 38.7% top-1 accuracy on mapped targets (person+hat only, n=31), whereas composite action phrases achieve 87.1% (87.0% on person crops, 87.5% on hat crops). The 44 'other' crops were vehicle and street detections unmapped to candidate targets and evaluated against tree/plant distractors, scoring 0/44 in variants 2-4. Furthermore, crop labels are automated YOLO-World detections (e.g. ID02 and ID14 labeled 'semi-truck'/'suv' contain a person), and the 75 crops represent repeated detections of ~10 unique physical objects across frames rather than 75 independent samples. Composite prompt construction must be utilized in Phase 2 query search.)*
 
 ## 7. Embedder decision
 
@@ -446,13 +489,13 @@ e98113d | harivarman-007 <harivarman124@gmail.com> | phase0: record empirical mo
      - Peak PyTorch Allocated: **2381.2 MB**
      - Condition (a) (Desktop apps open): Total Used = **3647.0 MB** / 4094.0 MB | Headroom = **246.0 MB** (6.0% buffer) -> **FAILS** the 3.4 GB rule.
      - Condition (b) (App windows closed, background processes running): Total Used = **3037.0 MB** / 4094.0 MB | Headroom = **856.0 MB** (20.9% buffer) -> **PASSES** the 3.4 GB rule.
-     - Single Crop Inference: **464.1 ms**
+     - Single Crop Inference: **INVALID: 464.1 ms** (single cold run on the inverted `test_gate.mp4` frame; image-tower-only benchmark with 3 warm-up + 20 timed runs across batch 1/8/16 scheduled for Phase 1 in `TASKS.md` Task 1.11).
      - WDDM Spill-to-Host Behavior: Under Windows WDDM 3.x, if allocations exceed physical VRAM, memory spills into host system RAM / pagefile, degrading inference throughput rather than immediately raising OutOfMemory. Batching crops with SO400M risks severe paging latency spikes.
   2. **`google/siglip-base-patch16-224` (FP16)**:
      - Peak PyTorch Allocated: **1086.1 MB**
      - Total System VRAM Used (Windows closed): **1670.0 MB** / 4094.0 MB | Headroom = **2223.0 MB** (54.3% buffer).
      - Total System VRAM Used (Condition a): **2279.0 MB** / 4094.0 MB | Headroom = **1614.0 MB** (39.4% buffer).
-     - Single Crop Inference: **198.6 ms** (2.34x faster)
+     - Single Crop Inference: **INVALID: 198.6 ms ("2.34x faster")** (single cold run on the inverted `test_gate.mp4` frame; image-tower-only benchmark with 3 warm-up + 20 timed runs across batch 1/8/16 scheduled for Phase 1 in `TASKS.md` Task 1.11).
 - **Decision**:
   - Support both models cleanly via config/CLI (`index_<embedder>`).
   - Primary default for Phase 1 ingest tests: `google/siglip-base-patch16-224` to ensure batch stability without triggering GPU OOM or WDDM spill-to-host latency degradation on the 4 GB GPU.
@@ -463,12 +506,18 @@ e98113d | harivarman-007 <harivarman124@gmail.com> | phase0: record empirical mo
 - `footage/test_gate.mp4` was discovered to be upside down and was dropped as invalid; all tests re-run on upright clips `test_video01.mp4`, `test_video02.mp4`, `test_video03.mp4`.
 - Added Task 1.10 to `TASKS.md` ensuring ingest reads rotation metadata per video and normalizes orientation prior to inference.
 - SigLIP tokenizer required `sentencepiece` and `protobuf` libraries on Windows; installed into `.venv` and recorded in `requirements.txt`.
-- Semantic similarity ranking was evaluated across 75 real crops extracted from the three upright clips. Upright retrieval demonstrated high discrimination for persons (AUC=0.8152) and hats/helmets (AUC=0.9683), while no bags were present in the clips ($N=0$).
+- Semantic similarity ranking was evaluated across 75 real crops extracted from the three upright clips. Upright retrieval demonstrated high discrimination for persons (AUC=0.8779 composite, 0.8177 bare) and hats/helmets (AUC=0.9627 composite, 0.9664 bare), while no bags were present in the clips ($N=0$, UNTESTED).
+- **GPU Text Encoder Memory Finding**: Calling `yolo.set_classes(...)` on GPU instantiates and retains the CLIP text encoder (`clip-vit-base-patch32`, 151.3M parameters, 337 MB weights, +443 MiB measured VRAM allocation) on the GPU device. Phase 1 must execute `set_classes` on CPU or explicitly delete and free the CLIP text encoder afterward to prevent persistent GPU memory consumption.
+- Added Task 1.11 to `TASKS.md`: Benchmark image tower only (3 warm-up + 20 timed runs, batch sizes 1/8/16, both embedders) on crops extracted from upright clips.
+- Added Task 1.12 to `TASKS.md`: NVML free-VRAM guard check before each model load, ensuring pre-flight headroom verification.
 
 ## 9. Known issues and limitations (be blunt)
 - **4 GB Hardware Ceiling & WDDM Spill-to-Host**: Running SO400M on the RTX 3050 uses ~3.04 GB with desktop windows closed (passing the 3.4 GB ceiling), but exceeds 3.6 GB with desktop apps open (failing the rule). Under Windows WDDM, exceeding physical VRAM spills allocations to host system RAM, causing severe throughput drops.
-- **Absence of Bags in Footage**: The three provided test clips contain pedestrians, vehicles, umbrellas, and motorcyclists with helmets, but contain zero ground-truth bag detections ($N=0$).
-- **Prompt Sensitivity in SigLIP**: Bare nouns ("a person") achieve lower top-1 accuracy (17.3%) than composite action phrases ("a walking person", achieving 87.0% on person crops). Query construction in Phase 2 must use composite phrasing.
+- **Bag Retrieval UNTESTED**: The three provided test clips contain pedestrians, vehicles, umbrellas, and motorcyclists with helmets, but contain zero ground-truth bag detections ($N=0$). Consequently, bag retrieval is completely **UNTESTED** and ROC-AUC is **N/A** (not 0.5000).
+- **Accuracy & Prompt Sensitivity**: On mapped targets (person+hat only, $n=31$; Person $N=23$, Hat $N=8$), bare nouns achieve 38.7% top-1 accuracy, while composite action phrases achieve 87.1% (87.0% on person crops, 87.5% on hat crops). The remaining 44 crops ('other') were vehicle and street detections unmapped to candidate classes and evaluated against tree/plant target prompts, scoring 0/44 in variants 2–4. Query construction in Phase 2 must use composite phrasing.
+- **Automated YOLO-World Labels**: Labels assigned to crops are automated detections from `vocab.yaml`, not human ground-truth. Several small crops are mislabeled (e.g., ID02 and ID14 in `test_video01.mp4` are labeled `semi-truck` and `suv` but actually contain a pedestrian).
+- **Repeated Detections**: The 75 extracted crops represent repeated detections of approximately 10 unique physical objects (~4-5 pedestrians, 1 motorcyclist, ~4 vehicles) across sampled timestamps, not 75 independent samples. In retrieval, Top-1 Precision = 100% corresponds to a single retrieved item ($k=1$).
+- **Unreliability of `torch.cuda.mem_get_info`**: `mem_get_info` returned an identical 3250.20 MB across three runs with different background loads, reads a constant ~310 MiB below `nvidia-smi` free under load, and showed a coincidental +27.2 MB offset at idle. All VRAM budgeting, allocation guards, and pre-flight checks will strictly use NVML / `nvidia-smi`.
 
 ## 10. What was NOT verified
 - LLM API calls (`ANTHROPIC_API_KEY` and `GEMINI_API_KEY` marked NOT RUN).
@@ -482,13 +531,13 @@ e98113d | harivarman-007 <harivarman124@gmail.com> | phase0: record empirical mo
 ## 12. Files created or changed
 - `RULES.md`
 - `PLAN.md`
-- `TASKS.md` (Added Task 1.10 for video rotation normalization)
+- `TASKS.md` (Added Tasks 1.10, 1.11, 1.12)
 - `ARCHITECTURE.md`
-- `DECISIONS.md` (Amended DECISION-003)
+- `DECISIONS.md` (Amended DECISION-003 with INVALID markings)
 - `EVAL.md`
 - `COMMITS.md`
 - `README.md`
-- `.gitignore`
+- `.gitignore` (Added `footage/_invalid_test_gate/`)
 - `.env.example`
 - `config/vocab.yaml`
 - `requirements.txt`
@@ -497,6 +546,7 @@ e98113d | harivarman-007 <harivarman124@gmail.com> | phase0: record empirical mo
 - `scripts/check_orientation.py`
 - `scripts/measure_condition_b.py`
 - `scripts/benchmark_new_footage.py`
+- `footage/_invalid_test_gate/`
 - `footage/orientation_check/`
 - `footage/crops_contact_sheet.jpg`
 - `REPORTS/PHASE_0_REPORT.md`
