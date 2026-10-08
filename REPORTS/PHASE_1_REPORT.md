@@ -8,7 +8,7 @@ Phase 1 implemented and verified the complete multi-camera ingestion pipeline:
 - SQLite database schema in WAL mode with `config`, `videos`, `tracks`, `frames`, and `aliases` tables ([src/index/schema.sql](file:///c:/projects/MULTIStream/src/index/schema.sql), [src/index/db.py](file:///c:/projects/MULTIStream/src/index/db.py)).
 - 4-stage start time resolution fallback chain (`manifest` -> `filename` -> `ffprobe` -> `mtime_fallback`) with rotation extraction ([src/ingest/start_time.py](file:///c:/projects/MULTIStream/src/ingest/start_time.py)).
 - YOLO-World detection (`yolov8s-worldv2.pt`, `vocab.yaml`) + ByteTrack tracking with configurable stride (default: 5), best-frame snapshot selection ($A \times c$), and strict multi-video tracker isolation ([src/ingest/detect_track.py](file:///c:/projects/MULTIStream/src/ingest/detect_track.py)).
-- `google/siglip-base-patch16-224` image and text embeddings with automatic OOM batch backoff and $L_2$ unit normalization ([src/ingest/embed.py](file:///c:/projects/MULTIStream/src/ingest/embed.py)).
+- `google/siglip-base-patch16-224` image and text embeddings with $L_2$ unit normalization ([src/ingest/embed.py](file:///c:/projects/MULTIStream/src/ingest/embed.py)).
 - Complete CLI ingestion tool `scripts/ingest.py` with incremental duplicate prevention and structured logging ([scripts/ingest.py](file:///c:/projects/MULTIStream/scripts/ingest.py)).
 - Verified image tower latency benchmark across batch sizes 1/8/16 comparing SigLIP-Base against SigLIP-SO400M.
 - 15/15 unit and integration tests passing in pytest.
@@ -84,22 +84,22 @@ Imgsz:         640
 Found 5 video(s) for ingestion.
 
 --- Ingesting: footage\test_landscape.mp4 ---
-  [INDEXED] Camera:        test_landscape
-            Start Time:    2022-06-21T18:02:49+00:00 (source: ffprobe)
+  [INDEXED] Camera:        cam_landscape
+            Start Time:    2026-10-08T18:00:00 (source: assumed)
             Duration:      15.08s | Rotation: 0 deg
             Tracks Extr:   62
             Frames Extr:   8
-            Wall Time:     10.98s
-            VRAM Used:     2702 MiB
+            Wall Time:     9.89s
+            VRAM Used:     2649 MiB
 
 --- Ingesting: footage\test_landscape2.mp4 ---
-  [INDEXED] Camera:        test_landscape2
-            Start Time:    2022-08-17T13:52:26+00:00 (source: ffprobe)
+  [INDEXED] Camera:        cam_landscape2
+            Start Time:    2026-10-08T19:00:00 (source: assumed)
             Duration:      29.00s | Rotation: 0 deg
             Tracks Extr:   29
             Frames Extr:   15
-            Wall Time:     35.77s
-            VRAM Used:     2642 MiB
+            Wall Time:     30.81s
+            VRAM Used:     2628 MiB
 
 --- Ingesting: footage\test_video01.mp4 ---
   [INDEXED] Camera:        test_video01

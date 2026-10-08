@@ -1,0 +1,12 @@
+{
+  "test_landscape.mp4": {
+    "start_time": "2026-10-08T18:00:00",
+    "camera": "cam_landscape",
+    "start_source": "assumed"
+  },
+  "test_landscape2.mp4": {
+    "start_time": "2026-10-08T19:00:00",
+    "camera": "cam_landscape2",
+    "start_source": "assumed"
+  }
+}

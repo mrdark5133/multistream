@@ -185,7 +185,7 @@ def resolve_video_metadata(
                     path=str(v_path),
                     camera=cam,
                     start_time=entry["start_time"],
-                    start_source="manifest",
+                    start_source=entry.get("start_source", "manifest"),
                     fps=fps,
                     width=width,
                     height=height,

@@ -15,6 +15,7 @@ __pycache__/
 # Large Files & Video Assets (Do NOT commit)
 footage/*
 !footage/crops_contact_sheet.jpg
+!footage/manifest.json
 !footage/orientation_check/
 !footage/orientation_check/*
 footage/_invalid_test_gate/
