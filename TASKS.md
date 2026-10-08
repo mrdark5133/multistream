@@ -37,14 +37,14 @@ Rules: Check a box ONLY when the acceptance test for that task has passed. Inclu
 ---
 
 ## Phase 2: Query Engine (Search, No UI)
-- [ ] 2.1 Implement `parse_query` with pluggable providers (`claude`, `gemini`, `rules`) and context bundle
-- [ ] 2.2 Implement relative time parsing against DB "now" timestamp with unit tests
-- [ ] 2.3 Implement SigLIP cosine vector search with prompt tuning and spatio-temporal filtering
-- [ ] 2.4 Construct structured result objects with snapshot paths and clip descriptors
-- [ ] 2.5 Implement `ffmpeg` on-demand clip extraction with boundary padding
-- [ ] 2.6 CLI tool `scripts/query.py` returning top ranked results
-- [ ] 2.7 Measure stage latency profiling (parse, embed, search, clip cut)
-- [ ] Phase 2 Report generated and approved (`REPORTS/PHASE_2_REPORT.md`)
+- [x] 2.1 Implement `parse_query` with pluggable providers (`claude`, `gemini`, `rules`) and context bundle - [PHASE_2_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_2_REPORT.md)
+- [x] 2.2 Implement relative time parsing against DB "now" timestamp with unit tests - [PHASE_2_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_2_REPORT.md)
+- [x] 2.3 Implement SigLIP cosine vector search with prompt tuning and spatio-temporal filtering - [PHASE_2_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_2_REPORT.md)
+- [x] 2.4 Construct structured result objects with snapshot paths and clip descriptors - [PHASE_2_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_2_REPORT.md)
+- [x] 2.5 Implement `ffmpeg` on-demand clip extraction with boundary padding - [PHASE_2_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_2_REPORT.md)
+- [x] 2.6 CLI tool `scripts/query.py` returning top ranked results - [PHASE_2_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_2_REPORT.md)
+- [x] 2.7 Measure stage latency profiling (parse, embed, search, clip cut) - [PHASE_2_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_2_REPORT.md)
+- [x] Phase 2 Report generated and approved (`REPORTS/PHASE_2_REPORT.md`)
 
 ---
 
