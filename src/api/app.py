@@ -15,6 +15,8 @@ from pydantic import BaseModel, Field
 from src.query.search import SearchEngine
 from src.query.clips import extract_video_clip
 from src.utils.vram import get_nvml_vram_info
+from src.ingest.live_stream import LiveStreamWorker
+from src.ingest.detect_track import load_yolo_world
 
 
 # Project directories
@@ -393,6 +395,66 @@ def health():
             "aliases_count": n_aliases
         }
     }
+
+
+# --- Live Mobile Webcam / RTSP Stream Endpoints ---
+
+class StreamStartRequest(BaseModel):
+    stream_url: str = Field(..., description="IP webcam or RTSP stream URL (or path to video file for simulated demo)")
+    camera: str = Field("mobile_cam01", description="Camera name identifier")
+
+
+_live_worker: Optional[LiveStreamWorker] = None
+_yolo_model = None
+_classes = None
+
+
+@app.post("/stream/start")
+def start_live_stream(req: StreamStartRequest):
+    """
+    Connect to a live mobile phone stream (IP Webcam) or simulated stream,
+    performing real-time detection, tracking, color tagging, and SQLite indexing.
+    """
+    global _live_worker, _yolo_model, _classes
+    if _live_worker and _live_worker.is_running:
+        _live_worker.stop()
+
+    engine = get_search_engine()
+    if _yolo_model is None:
+        _yolo_model, _classes = load_yolo_world(
+            weights_path="yolov8s-worldv2.pt",
+            vocab_path="config/vocab.yaml",
+            device="cuda:0"
+        )
+
+    _live_worker = LiveStreamWorker(
+        stream_url=req.stream_url,
+        camera_name=req.camera,
+        db_path=INDEX_DB,
+        stride=5
+    )
+    _live_worker.start(yolo_model=_yolo_model, embedder=engine.embedder, classes=_classes)
+    engine.reload_parser()
+    return {"status": "started", "camera": req.camera, "stream_url": req.stream_url}
+
+
+@app.post("/stream/stop")
+def stop_live_stream():
+    """Stop active live mobile stream ingestion."""
+    global _live_worker
+    if _live_worker:
+        _live_worker.stop()
+        return {"status": "stopped", "stats": _live_worker.stats}
+    return {"status": "no_active_stream"}
+
+
+@app.get("/stream/status")
+def get_live_stream_status():
+    """Retrieve runtime status of active live stream."""
+    global _live_worker
+    if _live_worker:
+        return _live_worker.stats
+    return {"status": "idle"}
 
 
 # Mount static assets

@@ -130,8 +130,15 @@ class AliasManager:
         return out
 
     def get_known_cameras(self) -> List[str]:
-        """Get all distinct camera identifiers present in videos table."""
-        cur = self.conn.execute("SELECT DISTINCT camera FROM videos ORDER BY camera ASC;")
+        """Get all distinct camera identifiers present in videos and tracks tables."""
+        cur = self.conn.execute(
+            """
+            SELECT DISTINCT camera FROM videos
+            UNION
+            SELECT DISTINCT camera FROM tracks
+            ORDER BY camera ASC;
+            """
+        )
         return [r[0] for r in cur.fetchall()]
 
     def delete_alias(self, name: str) -> bool:

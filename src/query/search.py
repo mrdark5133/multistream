@@ -95,6 +95,9 @@ class SearchEngine:
         """
         now_ref = now_override or self.get_latest_timestamp()
         parsed = self.parser.parse(query_text, now_ref=now_ref)
+        if parsed.location and parsed.location_status == "UNRESOLVED":
+            self.reload_parser()
+            parsed = self.parser.parse(query_text, now_ref=now_ref)
         
         # Check if query contains an unknown location referent
         if parsed.location:

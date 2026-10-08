@@ -18,15 +18,29 @@ const btnSavePoly = document.getElementById('btn-save-poly');
 const polyCanvas = document.getElementById('poly-canvas');
 const ctx = polyCanvas.getContext('2d');
 
+// Mobile Cam Modal Elements
+const mobileModal = document.getElementById('mobile-modal');
+const btnOpenMobile = document.getElementById('btn-open-mobile');
+const btnCloseMobile = document.getElementById('btn-close-mobile');
+const streamUrlInput = document.getElementById('stream-url-input');
+const streamCameraName = document.getElementById('stream-camera-name');
+const btnStartStream = document.getElementById('btn-start-stream');
+const btnStopStream = document.getElementById('btn-stop-stream');
+const streamStatusText = document.getElementById('stream-status-text');
+const streamDetailText = document.getElementById('stream-detail-text');
+
 let knownCameras = [];
 let currentPolyPoints = [];
 let currentBgImage = new Image();
+let streamPollTimer = null;
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
   fetchHealth();
   fetchCameras();
   setupEventListeners();
+  checkStreamStatus();
+  streamPollTimer = setInterval(checkStreamStatus, 2000);
 });
 
 function setupEventListeners() {
@@ -38,6 +52,29 @@ function setupEventListeners() {
     }
   });
 
+  // Mobile modal events
+  if (btnOpenMobile) {
+    btnOpenMobile.addEventListener('click', () => {
+      mobileModal.classList.remove('hidden');
+      checkStreamStatus();
+    });
+  }
+
+  if (btnCloseMobile) {
+    btnCloseMobile.addEventListener('click', () => {
+      mobileModal.classList.add('hidden');
+    });
+  }
+
+  if (btnStartStream) {
+    btnStartStream.addEventListener('click', handleStartStream);
+  }
+
+  if (btnStopStream) {
+    btnStopStream.addEventListener('click', handleStopStream);
+  }
+
+  // Polygon modal events
   btnOpenPoly.addEventListener('click', () => {
     polyModal.classList.remove('hidden');
     loadCameraCanvas();
@@ -402,5 +439,89 @@ function formatTimestamp(isoStr) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   } catch {
     return isoStr;
+  }
+}
+
+// --- Live Mobile Stream Handlers ---
+async function checkStreamStatus() {
+  if (!streamStatusText || !streamDetailText) return;
+  try {
+    const res = await fetch('/stream/status');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'running') {
+        streamStatusText.textContent = `Streaming (${data.camera})`;
+        streamStatusText.style.color = '#10b981';
+        let detail = `FPS: ${data.fps} | Frames: ${data.frames_read} | Tracks: ${data.tracks_indexed}`;
+        if (data.latest_track) {
+          detail += ` | Last: ${data.latest_track.color || ''} ${data.latest_track.label}`;
+        }
+        streamDetailText.textContent = detail;
+        if (btnStartStream) btnStartStream.style.display = 'none';
+        if (btnStopStream) btnStopStream.style.display = 'inline-block';
+      } else if (data.status === 'finished') {
+        streamStatusText.textContent = 'Finished';
+        streamStatusText.style.color = '#f59e0b';
+        streamDetailText.textContent = `Processed ${data.frames_read || 0} frames | Indexed ${data.tracks_indexed || 0} tracks`;
+        if (btnStartStream) btnStartStream.style.display = 'inline-block';
+        if (btnStopStream) btnStopStream.style.display = 'none';
+      } else {
+        streamStatusText.textContent = data.status || 'Idle';
+        streamStatusText.style.color = '#38bdf8';
+        streamDetailText.textContent = data.status === 'idle' ? 'No active stream' : `Status: ${data.status}`;
+        if (btnStartStream) btnStartStream.style.display = 'inline-block';
+        if (btnStopStream) btnStopStream.style.display = 'none';
+      }
+    }
+  } catch (err) {
+    console.error('Failed to get stream status:', err);
+  }
+}
+
+async function handleStartStream() {
+  const url = streamUrlInput.value.trim();
+  const cam = streamCameraName.value.trim() || 'mobile_cam01';
+  if (!url) {
+    alert('Please enter a stream URL (e.g. http://192.168.1.105:8080/video or footage/traffic_video.mp4)');
+    return;
+  }
+  btnStartStream.disabled = true;
+  btnStartStream.textContent = 'Connecting...';
+  try {
+    const res = await fetch('/stream/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stream_url: url, camera: cam })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      appendAssistantMessage(`&#128249; <strong>Live Mobile Stream Started</strong>: Ingesting from <code>${escapeHtml(url)}</code> under camera <strong>${escapeHtml(cam)}</strong>. Detections, tracks, and dominant colors are stored live into the database! Try asking: <em>"car in ${escapeHtml(cam)}"</em> or <em>"bus in ${escapeHtml(cam)}"</em>.`);
+      fetchCameras();
+    } else {
+      const err = await res.json();
+      alert('Error starting stream: ' + (err.detail || res.statusText));
+    }
+  } catch (err) {
+    alert('Failed to connect to stream: ' + err.message);
+  } finally {
+    btnStartStream.disabled = false;
+    btnStartStream.textContent = 'Connect & Start Live Ingest';
+    checkStreamStatus();
+  }
+}
+
+async function handleStopStream() {
+  btnStopStream.disabled = true;
+  try {
+    const res = await fetch('/stream/stop', { method: 'POST' });
+    if (res.ok) {
+      appendAssistantMessage(`&#9209; <strong>Live Stream Stopped</strong>. Captured tracks are stored in the database.`);
+      fetchCameras();
+    }
+  } catch (err) {
+    alert('Failed to stop stream: ' + err.message);
+  } finally {
+    btnStopStream.disabled = false;
+    checkStreamStatus();
   }
 }
