@@ -51,6 +51,7 @@ class LiveStreamWorker:
 
         self.is_running = False
         self.thread: Optional[threading.Thread] = None
+        self.latest_jpeg: Optional[bytes] = None
 
         # Stats
         self.stats = {
@@ -62,6 +63,7 @@ class LiveStreamWorker:
             "active_tracks": 0,
             "fps": 0.0,
             "start_time": None,
+            "recorded_file": None,
             "latest_track": None,
             "latest_snapshot": None
         }
@@ -125,6 +127,7 @@ class LiveStreamWorker:
         rec_filename = f"{self.camera_name}_{start_dt.strftime('%Y%m%d_%H%M%S')}.mp4"
         rec_path = self.recorded_dir / rec_filename
         rel_rec_path = f"footage/recorded/{rec_filename}".replace("\\", "/")
+        self.stats["recorded_file"] = rel_rec_path
 
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(str(rec_path), fourcc, fps, (width, height))
@@ -149,6 +152,7 @@ class LiveStreamWorker:
         frame_count = 0
         t0 = time.time()
         tracks_seen = set()
+        active_preview_boxes = []
 
         try:
             while self.is_running:
@@ -186,6 +190,7 @@ class LiveStreamWorker:
                         verbose=False
                     )
 
+                    new_boxes = []
                     if results and len(results) > 0 and results[0].boxes is not None and results[0].boxes.id is not None:
                         boxes = results[0].boxes
                         cls_ids = boxes.cls.cpu().numpy().astype(int)
@@ -207,6 +212,7 @@ class LiveStreamWorker:
 
                             # Detect dominant color
                             detected_color, color_conf = extract_dominant_color(crop)
+                            new_boxes.append((bx1, by1, bx2, by2, f"#{trk_id} {detected_color} {label}"))
 
                             # Save annotated snapshot
                             snap_filename = f"track_{trk_id}.jpg"
@@ -265,6 +271,25 @@ class LiveStreamWorker:
                                     "offset_s": offset_s
                                 }
                                 self.stats["latest_snapshot"] = rel_snap_path
+
+                    active_preview_boxes = new_boxes
+
+                # Generate live preview frame for Web UI video feed
+                if frame_count % 2 == 0 or self.latest_jpeg is None:
+                    disp = frame.copy()
+                    for pb in active_preview_boxes:
+                        cv2.rectangle(disp, (pb[0], pb[1]), (pb[2], pb[3]), (0, 255, 0), 2)
+                        cv2.putText(
+                            disp,
+                            pb[4],
+                            (pb[0], max(18, pb[1] - 6)),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5,
+                            (0, 255, 0),
+                            2
+                        )
+                    _, buf = cv2.imencode('.jpg', disp, [cv2.IMWRITE_JPEG_QUALITY, 55])
+                    self.latest_jpeg = buf.tobytes()
 
         except Exception as e:
             logger.error(f"[LIVE] Error during stream processing: {e}")

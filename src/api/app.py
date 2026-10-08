@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -455,6 +455,28 @@ def get_live_stream_status():
     if _live_worker:
         return _live_worker.stats
     return {"status": "idle"}
+
+
+@app.get("/stream/feed")
+def stream_feed():
+    """
+    Serve live multipart MJPEG video feed showing camera view and real-time bounding boxes.
+    """
+    import time
+
+    def frame_generator():
+        while _live_worker and _live_worker.is_running:
+            if getattr(_live_worker, "latest_jpeg", None) is not None:
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + _live_worker.latest_jpeg + b"\r\n"
+                )
+            time.sleep(0.04)
+
+    return StreamingResponse(
+        frame_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
 
 
 # Mount static assets

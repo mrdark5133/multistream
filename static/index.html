@@ -153,9 +153,25 @@
               </button>
             </div>
 
+            <!-- Live Camera Stream Video View -->
+            <div id="stream-preview-wrapper" style="display: none; width: 100%; border-radius: 8px; overflow: hidden; background: #000; position: relative; border: 1px solid rgba(255,255,255,0.15);">
+              <img id="stream-live-img" src="" alt="Live Mobile Stream Feed" style="width: 100%; height: auto; max-height: 280px; object-fit: contain; display: block;">
+              <div style="position: absolute; top: 8px; left: 8px; display: flex; gap: 6px; align-items: center;">
+                <span id="preview-rec-badge" style="background: rgba(220, 38, 38, 0.95); color: white; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
+                  <span style="width: 7px; height: 7px; background: white; border-radius: 50%; display: inline-block;"></span> REC
+                </span>
+                <span id="preview-camera-badge" style="background: rgba(0,0,0,0.75); color: #38bdf8; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-family: monospace;">
+                  mobile_cam01
+                </span>
+              </div>
+              <div id="preview-file-badge" style="position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.8); color: #cbd5e1; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-family: monospace;">
+                Recording active to disk
+              </div>
+            </div>
+
             <div id="stream-status-box" style="font-size: 13px; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <span style="font-weight: 600; color: var(--text-main);">Live Stream Telemetry</span>
+                <span style="font-weight: 600; color: var(--text-main);">Live Stream & Recording Status</span>
                 <span id="stream-status-text" style="padding: 2px 8px; border-radius: 12px; font-size: 11px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 600;">
                   IDLE
                 </span>

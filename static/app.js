@@ -468,6 +468,11 @@ async function checkStreamStatus() {
       const isStreaming = (data.status === 'streaming' || data.status === 'running');
       const isEnded = (data.status === 'finished' || data.status === 'stopped');
 
+      const previewWrapper = document.getElementById('stream-preview-wrapper');
+      const streamLiveImg = document.getElementById('stream-live-img');
+      const previewCamBadge = document.getElementById('preview-camera-badge');
+      const previewFileBadge = document.getElementById('preview-file-badge');
+
       if (isStreaming) {
         streamStatusText.textContent = `● STREAMING (${data.camera || 'mobile_cam01'})`;
         streamStatusText.style.background = 'rgba(16, 185, 129, 0.2)';
@@ -479,13 +484,24 @@ async function checkStreamStatus() {
         streamDetailText.innerText = detail;
         if (btnStartStream) btnStartStream.style.display = 'none';
         if (btnStopStream) btnStopStream.style.display = 'inline-block';
+
+        if (previewWrapper) previewWrapper.style.display = 'block';
+        if (previewCamBadge) previewCamBadge.textContent = data.camera || 'mobile_cam01';
+        if (previewFileBadge && data.recorded_file) {
+          previewFileBadge.textContent = `Recording: ${data.recorded_file}`;
+        }
+        if (streamLiveImg && (!streamLiveImg.src || streamLiveImg.src.indexOf('/stream/feed') === -1)) {
+          streamLiveImg.src = '/stream/feed?t=' + Date.now();
+        }
       } else if (isEnded) {
         streamStatusText.textContent = 'STOPPED';
         streamStatusText.style.background = 'rgba(245, 158, 11, 0.2)';
         streamStatusText.style.color = '#fbbf24';
-        streamDetailText.innerText = `Stream ended. Processed ${data.frames_read || 0} frames | Indexed ${data.tracks_indexed || 0} tracks.`;
+        streamDetailText.innerText = `Stream ended. Processed ${data.frames_read || 0} frames | Indexed ${data.tracks_indexed || 0} tracks.\nRecorded video saved: ${data.recorded_file || 'footage/recorded/'}`;
         if (btnStartStream) btnStartStream.style.display = 'inline-block';
         if (btnStopStream) btnStopStream.style.display = 'none';
+        if (streamLiveImg) streamLiveImg.src = '';
+        if (previewWrapper) previewWrapper.style.display = 'none';
       } else {
         streamStatusText.textContent = (data.status || 'IDLE').toUpperCase();
         streamStatusText.style.background = 'rgba(56, 189, 248, 0.15)';
@@ -493,6 +509,8 @@ async function checkStreamStatus() {
         streamDetailText.innerText = data.status === 'idle' ? 'Enter your IP Webcam URL above and click Connect.' : `Status: ${data.status}`;
         if (btnStartStream) btnStartStream.style.display = 'inline-block';
         if (btnStopStream) btnStopStream.style.display = 'none';
+        if (streamLiveImg) streamLiveImg.src = '';
+        if (previewWrapper) previewWrapper.style.display = 'none';
       }
     }
   } catch (err) {
