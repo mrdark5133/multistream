@@ -96,26 +96,73 @@
 
       <!-- Live Mobile Cam Connector Modal -->
       <aside class="poly-modal hidden" id="mobile-modal">
-        <div class="poly-card">
+        <div class="poly-card" style="width: 620px;">
           <div class="poly-header">
-            <h3>Connect Phone Camera (IP Webcam)</h3>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 20px;">📱</span>
+              <h3 style="margin: 0; font-size: 16px;">Connect Phone Camera (IP Webcam)</h3>
+            </div>
             <button class="close-btn" id="btn-close-mobile">&times;</button>
           </div>
-          <p class="poly-instruction">
-            Connect your phone over Wi-Fi/Hotspot (e.g. running <em>IP Webcam</em> on Android or RTSP on iOS), or use a simulated feed. Objects, colors, and tracks are indexed live into the database.
+          <p class="poly-instruction" style="margin-bottom: 14px;">
+            Stream live from your mobile phone over Wi-Fi or Hotspot. Open <strong>IP Webcam</strong> on Android (or RTSP on iOS), tap <em>Start Server</em>, and enter the stream link below. Runtime YOLO detection, color tagging, and SQLite indexing will process the feed continuously.
           </p>
-          <div class="poly-controls" style="flex-direction: column; gap: 12px;">
-            <div style="display: flex; gap: 8px; width: 100%;">
-              <input type="text" id="stream-url-input" class="poly-input" placeholder="Stream URL (e.g. http://192.168.1.105:8080/video)" value="footage/traffic_video.mp4" style="flex: 2;">
-              <input type="text" id="stream-camera-name" class="poly-input" placeholder="Camera Name" value="mobile_cam01" style="flex: 1;">
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">
+                Phone Stream Link / IP Webcam URL:
+              </label>
+              <input 
+                type="text" 
+                id="stream-url-input" 
+                class="poly-input" 
+                placeholder="Paste URL: http://192.168.1.105:8080/video" 
+                value=""
+                style="width: 100%; font-family: monospace;"
+              >
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+                <span style="font-size: 11px; color: var(--text-muted);">Quick Presets:</span>
+                <button type="button" id="btn-fill-ipwebcam" class="pill-btn" style="padding: 2px 8px; font-size: 11px;">Sample IP Webcam URL</button>
+                <button type="button" id="btn-fill-demo" class="pill-btn" style="padding: 2px 8px; font-size: 11px;">Demo Video File</button>
+              </div>
             </div>
-            <div style="display: flex; gap: 8px; justify-content: flex-end; width: 100%;">
-              <button id="btn-start-stream" class="btn-primary" style="background: #10b981;">Connect & Start Live Ingest</button>
-              <button id="btn-stop-stream" class="btn-secondary" style="display: none; background: #ef4444; color: white;">Stop Stream</button>
+
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">
+                Camera Identifier (Name):
+              </label>
+              <input 
+                type="text" 
+                id="stream-camera-name" 
+                class="poly-input" 
+                placeholder="e.g. mobile_cam01" 
+                value="mobile_cam01"
+                style="width: 100%; font-family: monospace;"
+              >
+              <span style="font-size: 11px; color: var(--text-muted); margin-top: 3px; display: block;">
+                Use this name in chat queries (e.g. <em>"car in mobile_cam01"</em> or <em>"in mobile_cam01"</em>).
+              </span>
             </div>
-            <div id="stream-status-box" style="margin-top: 6px; font-size: 13px; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); width: 100%;">
-              <div>Status: <strong id="stream-status-text" style="color: #38bdf8;">Idle</strong></div>
-              <div id="stream-detail-text" style="margin-top: 4px; font-family: monospace;">No active stream</div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08);">
+              <button id="btn-stop-stream" class="btn-secondary" style="display: none; background: #dc2626; color: white; border: none; font-weight: 600;">
+                ⏹ Stop Live Stream
+              </button>
+              <button id="btn-start-stream" class="btn-primary" style="background: #10b981; font-weight: 600;">
+                ▶ Connect & Start Live Ingest
+              </button>
+            </div>
+
+            <div id="stream-status-box" style="font-size: 13px; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-weight: 600; color: var(--text-main);">Live Stream Telemetry</span>
+                <span id="stream-status-text" style="padding: 2px 8px; border-radius: 12px; font-size: 11px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 600;">
+                  IDLE
+                </span>
+              </div>
+              <div id="stream-detail-text" style="font-family: monospace; font-size: 12px; line-height: 1.5; color: var(--text-main);">
+                Enter your IP Webcam URL above and click Connect.
+              </div>
             </div>
           </div>
         </div>

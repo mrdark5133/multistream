@@ -74,6 +74,22 @@ function setupEventListeners() {
     btnStopStream.addEventListener('click', handleStopStream);
   }
 
+  const btnFillIpwebcam = document.getElementById('btn-fill-ipwebcam');
+  if (btnFillIpwebcam) {
+    btnFillIpwebcam.addEventListener('click', () => {
+      streamUrlInput.value = 'http://192.168.1.105:8080/video';
+      streamUrlInput.focus();
+    });
+  }
+
+  const btnFillDemo = document.getElementById('btn-fill-demo');
+  if (btnFillDemo) {
+    btnFillDemo.addEventListener('click', () => {
+      streamUrlInput.value = 'footage/traffic_video.mp4';
+      streamUrlInput.focus();
+    });
+  }
+
   // Polygon modal events
   btnOpenPoly.addEventListener('click', () => {
     polyModal.classList.remove('hidden');
@@ -449,26 +465,32 @@ async function checkStreamStatus() {
     const res = await fetch('/stream/status');
     if (res.ok) {
       const data = await res.json();
-      if (data.status === 'running') {
-        streamStatusText.textContent = `Streaming (${data.camera})`;
-        streamStatusText.style.color = '#10b981';
-        let detail = `FPS: ${data.fps} | Frames: ${data.frames_read} | Tracks: ${data.tracks_indexed}`;
+      const isStreaming = (data.status === 'streaming' || data.status === 'running');
+      const isEnded = (data.status === 'finished' || data.status === 'stopped');
+
+      if (isStreaming) {
+        streamStatusText.textContent = `● STREAMING (${data.camera || 'mobile_cam01'})`;
+        streamStatusText.style.background = 'rgba(16, 185, 129, 0.2)';
+        streamStatusText.style.color = '#34d399';
+        let detail = `FPS: ${data.fps || 0} | Frames: ${data.frames_read || 0} | Tracks: ${data.tracks_indexed || 0}`;
         if (data.latest_track) {
-          detail += ` | Last: ${data.latest_track.color || ''} ${data.latest_track.label}`;
+          detail += `\nLatest object: ${data.latest_track.color || ''} ${data.latest_track.label}`;
         }
-        streamDetailText.textContent = detail;
+        streamDetailText.innerText = detail;
         if (btnStartStream) btnStartStream.style.display = 'none';
         if (btnStopStream) btnStopStream.style.display = 'inline-block';
-      } else if (data.status === 'finished') {
-        streamStatusText.textContent = 'Finished';
-        streamStatusText.style.color = '#f59e0b';
-        streamDetailText.textContent = `Processed ${data.frames_read || 0} frames | Indexed ${data.tracks_indexed || 0} tracks`;
+      } else if (isEnded) {
+        streamStatusText.textContent = 'STOPPED';
+        streamStatusText.style.background = 'rgba(245, 158, 11, 0.2)';
+        streamStatusText.style.color = '#fbbf24';
+        streamDetailText.innerText = `Stream ended. Processed ${data.frames_read || 0} frames | Indexed ${data.tracks_indexed || 0} tracks.`;
         if (btnStartStream) btnStartStream.style.display = 'inline-block';
         if (btnStopStream) btnStopStream.style.display = 'none';
       } else {
-        streamStatusText.textContent = data.status || 'Idle';
+        streamStatusText.textContent = (data.status || 'IDLE').toUpperCase();
+        streamStatusText.style.background = 'rgba(56, 189, 248, 0.15)';
         streamStatusText.style.color = '#38bdf8';
-        streamDetailText.textContent = data.status === 'idle' ? 'No active stream' : `Status: ${data.status}`;
+        streamDetailText.innerText = data.status === 'idle' ? 'Enter your IP Webcam URL above and click Connect.' : `Status: ${data.status}`;
         if (btnStartStream) btnStartStream.style.display = 'inline-block';
         if (btnStopStream) btnStopStream.style.display = 'none';
       }

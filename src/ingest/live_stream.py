@@ -89,8 +89,24 @@ class LiveStreamWorker:
 
     def _run_loop(self):
         self.stats["status"] = "connecting"
-        cap = cv2.VideoCapture(self.stream_url)
-        if not cap.isOpened():
+        url = self.stream_url.strip()
+        # If user provides IP Webcam root (e.g. http://192.168.X.X:8080 or http://192.168.X.X:8080/),
+        # auto-append /video for OpenCV MJPEG stream consumption
+        candidate_urls = [url]
+        if url.startswith(("http://", "https://")) and not any(url.endswith(s) for s in ["/video", "/mjpg", "/mjpeg", ".mp4", ".mkv", ".ts"]):
+            candidate_urls.insert(0, url.rstrip("/") + "/video")
+
+        cap = None
+        for cand in candidate_urls:
+            logger.info(f"[LIVE] Attempting to open video stream at: {cand}")
+            test_cap = cv2.VideoCapture(cand)
+            if test_cap.isOpened():
+                cap = test_cap
+                self.stream_url = cand
+                break
+            test_cap.release()
+
+        if cap is None or not cap.isOpened():
             logger.error(f"[LIVE] Could not open stream: {self.stream_url}")
             self.stats["status"] = "error: could not connect to stream"
             self.is_running = False
