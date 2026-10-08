@@ -23,7 +23,9 @@ for clip_path in clips:
         save_path = out_dir / f"frame_{name}.jpg"
         cv2.imwrite(str(save_path), frame)
         h, w, c = frame.shape
-        print(f"Decoded {clip_path}: shape=({w}x{h}), auto_rotate_prop={auto_rotate}, saved={save_path}")
+        ff_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        ff_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print(f"Decoded {clip_path}: frame.shape (H, W)=({h}, {w}) | ffprobe (width, height)=({ff_w}, {ff_h}), auto_rotate_prop={auto_rotate}, saved={save_path}")
     else:
         print(f"Failed to decode {clip_path}")
     cap.release()
