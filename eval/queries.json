@@ -32,8 +32,8 @@
     "truth": [
       {
         "camera": "cam_landscape",
-        "start": "2026-10-08T18:00:00",
-        "end": "2026-10-08T18:00:15",
+        "start": "2026-10-08T18:00:04",
+        "end": "2026-10-08T18:00:12",
         "label": "person"
       }
     ]
@@ -45,8 +45,8 @@
     "truth": [
       {
         "camera": "cam_landscape2",
-        "start": "2026-10-08T19:00:05",
-        "end": "2026-10-08T19:00:27",
+        "start": "2026-10-08T19:00:02",
+        "end": "2026-10-08T19:00:09",
         "label": "bus"
       }
     ]
@@ -98,7 +98,7 @@
       {
         "camera": "test_video03",
         "start": "2026-10-08T15:07:34",
-        "end": "2026-10-08T15:07:51",
+        "end": "2026-10-08T15:07:42",
         "label": "motorbike"
       }
     ]
@@ -111,7 +111,7 @@
       {
         "camera": "cam_landscape",
         "start": "2026-10-08T18:00:04",
-        "end": "2026-10-08T18:00:15",
+        "end": "2026-10-08T18:00:09",
         "label": "van"
       }
     ]
@@ -132,12 +132,12 @@
   {
     "id": "test_01",
     "query": "a white car passing at cam_landscape",
-    "split": "held-out",
+    "split": "dev2",
     "truth": [
       {
         "camera": "cam_landscape",
-        "start": "2026-10-08T18:00:00",
-        "end": "2026-10-08T18:00:15",
+        "start": "2026-10-08T18:00:09",
+        "end": "2026-10-08T18:00:14",
         "label": "car"
       }
     ]
@@ -145,7 +145,7 @@
   {
     "id": "test_02",
     "query": "a large truck at cam_landscape2",
-    "split": "held-out",
+    "split": "dev2",
     "truth": [
       {
         "camera": "cam_landscape2",
@@ -158,12 +158,12 @@
   {
     "id": "test_03",
     "query": "people walking at cam_landscape2",
-    "split": "held-out",
+    "split": "dev2",
     "truth": [
       {
         "camera": "cam_landscape2",
-        "start": "2026-10-08T19:00:00",
-        "end": "2026-10-08T19:00:27",
+        "start": "2026-10-08T19:00:16",
+        "end": "2026-10-08T19:00:25",
         "label": "person"
       }
     ]
@@ -171,12 +171,12 @@
   {
     "id": "test_04",
     "query": "a motorcycle driving in test_video03",
-    "split": "held-out",
+    "split": "dev2",
     "truth": [
       {
         "camera": "test_video03",
-        "start": "2026-10-08T15:07:36",
-        "end": "2026-10-08T15:07:51",
+        "start": "2026-10-08T15:07:35",
+        "end": "2026-10-08T15:07:42",
         "label": "motorcycle"
       }
     ]
@@ -184,7 +184,7 @@
   {
     "id": "test_05",
     "query": "an animal in test_video02",
-    "split": "held-out",
+    "split": "dev2",
     "truth": [
       {
         "camera": "test_video02",
@@ -197,7 +197,7 @@
   {
     "id": "test_06",
     "query": "a utility cart at cam_landscape2",
-    "split": "held-out",
+    "split": "dev2",
     "truth": [
       {
         "camera": "cam_landscape2",
@@ -210,7 +210,7 @@
   {
     "id": "test_07",
     "query": "a semi-truck in test_video01",
-    "split": "held-out",
+    "split": "dev2",
     "truth": [
       {
         "camera": "test_video01",
@@ -223,7 +223,7 @@
   {
     "id": "test_08",
     "query": "a person walking in test_video01",
-    "split": "held-out",
+    "split": "dev2",
     "truth": [
       {
         "camera": "test_video01",
@@ -236,12 +236,12 @@
   {
     "id": "test_09",
     "query": "cars on the road in test_video03",
-    "split": "held-out",
+    "split": "dev2",
     "truth": [
       {
         "camera": "test_video03",
-        "start": "2026-10-08T15:07:35",
-        "end": "2026-10-08T15:07:51",
+        "start": "2026-10-08T15:07:38",
+        "end": "2026-10-08T15:07:45",
         "label": "car"
       }
     ]
@@ -249,7 +249,7 @@
   {
     "id": "test_10",
     "query": "an suv passing in test_video01",
-    "split": "held-out",
+    "split": "dev2",
     "truth": [
       {
         "camera": "test_video01",

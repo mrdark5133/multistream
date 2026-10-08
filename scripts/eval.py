@@ -19,12 +19,48 @@ from src.index.db import blob_to_emb
 import numpy as np
 
 
-DELTA_SECONDS = 5.0  # Temporal tolerance margin per EVAL.md
+DELTA_SECONDS = 3.0  # Temporal tolerance margin (+-3s per Phase 6 requirement)
+
+# Small synonym map per requirement 2:
+# car/van/suv, truck/bus only if listed, person/pedestrian, motorbike/motorcycle
+SYNONYM_MAP = {
+    "car": {"car", "van", "suv"},
+    "van": {"car", "van", "suv"},
+    "suv": {"car", "van", "suv"},
+    "truck": {"truck", "bus"},
+    "bus": {"bus", "truck"},
+    "person": {"person", "pedestrian"},
+    "pedestrian": {"person", "pedestrian"},
+    "motorcycle": {"motorcycle", "motorbike"},
+    "motorbike": {"motorcycle", "motorbike"},
+    "umbrella": {"umbrella"},
+    "cat": {"cat", "animal"},
+    "utility cart": {"utility cart"},
+}
+
+
+def label_matches(result_label: str, truth_label: str) -> bool:
+    """
+    Check if a candidate result label matches truth label using synonym map.
+    Whole-frame baseline results have label 'whole_frame' and match any truth in that frame.
+    """
+    if result_label == "whole_frame":
+        return True
+    r = result_label.lower().strip()
+    t = truth_label.lower().strip()
+    if r == t:
+        return True
+    syns = SYNONYM_MAP.get(t, {t})
+    return r in syns
 
 
 def is_hit(result: SearchResult, truth_list: List[Dict[str, Any]], delta_s: float = DELTA_SECONDS) -> Tuple[bool, float]:
     """
     Check if a result is a hit against ground truth list.
+    Requires:
+      1. Camera match
+      2. Time window match (+-delta_s)
+      3. Label match against truth label (using synonym map)
     Returns (is_hit, abs_time_error_seconds).
     """
     r_cam = result.camera.lower()
@@ -40,6 +76,12 @@ def is_hit(result: SearchResult, truth_list: List[Dict[str, Any]], delta_s: floa
         t_cam = t["camera"].lower()
         if r_cam == t_cam or r_cam == f"cam_{t_cam}" or t_cam == f"cam_{r_cam}":
             matched_cam = True
+            t_label = t.get("label", "").lower().strip()
+
+            # Object label must match truth label (e.g. person does not count as utility cart)
+            if not label_matches(result.label, t_label):
+                continue
+
             t_start = datetime.datetime.fromisoformat(t["start"]) - datetime.timedelta(seconds=delta_s)
             t_end = datetime.datetime.fromisoformat(t["end"]) + datetime.timedelta(seconds=delta_s)
 
@@ -59,7 +101,7 @@ def is_hit(result: SearchResult, truth_list: List[Dict[str, Any]], delta_s: floa
             if t_start <= r_dt <= t_end:
                 return True, err
 
-    # If camera matched but outside time tolerance
+    # If camera matched but outside tolerance or wrong label
     if matched_cam:
         return False, best_error
 
@@ -93,7 +135,6 @@ def evaluate_queries(
 
         # Prompt customization for ablations
         if mode == "bare_prompt":
-            # Strip "a " prefix
             prompt = parsed.object_prompt
             if prompt.startswith("a "):
                 prompt = prompt[2:]
@@ -110,19 +151,15 @@ def evaluate_queries(
         candidates: List[SearchResult] = []
 
         if mode == "whole_frame":
-            # Whole-frame baseline: query frames table only
+            # Whole-frame baseline: query frames table only with STRICT camera matching
             frame_sql = "SELECT id, video, camera, t_abs, offset_s, snapshot, emb FROM frames WHERE 1=1"
             params = []
             if parsed.location_status == "RESOLVED" and parsed.resolved_camera:
-                if mode in ["strict_camera", "vlm_off"]:
-                    cam_norm = parsed.resolved_camera.lower()
-                    cam_bare = cam_norm.replace("cam_", "")
-                    cam_with = f"cam_{cam_bare}"
-                    frame_sql += " AND LOWER(camera) IN (?, ?, ?)"
-                    params.extend([cam_norm, cam_bare, cam_with])
-                else:
-                    frame_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
-                    params.extend([f"%{parsed.resolved_camera.lower()}%", f"%cam_{parsed.resolved_camera.lower()}%"])
+                cam_norm = parsed.resolved_camera.lower()
+                cam_bare = cam_norm.replace("cam_", "")
+                cam_with = f"cam_{cam_bare}"
+                frame_sql += " AND LOWER(camera) IN (?, ?, ?)"
+                params.extend([cam_norm, cam_bare, cam_with])
             rows = engine.conn.execute(frame_sql, params).fetchall()
             for r in rows:
                 score = float(np.dot(query_emb, blob_to_emb(r["emb"])))
@@ -141,19 +178,15 @@ def evaluate_queries(
             results = candidates[:top_k]
 
         else:
-            # Query tracks table
+            # Query tracks table with STRICT camera matching for all pipeline configurations
             track_sql = "SELECT id, video, camera, track_id, label, t_start, t_end, t_best, offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb FROM tracks WHERE 1=1"
             params = []
             if parsed.location_status == "RESOLVED" and parsed.resolved_camera:
-                if mode in ["strict_camera", "vlm_off"]:
-                    cam_norm = parsed.resolved_camera.lower()
-                    cam_bare = cam_norm.replace("cam_", "")
-                    cam_with = f"cam_{cam_bare}"
-                    track_sql += " AND LOWER(camera) IN (?, ?, ?)"
-                    params.extend([cam_norm, cam_bare, cam_with])
-                else:
-                    track_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
-                    params.extend([f"%{parsed.resolved_camera.lower()}%", f"%cam_{parsed.resolved_camera.lower()}%"])
+                cam_norm = parsed.resolved_camera.lower()
+                cam_bare = cam_norm.replace("cam_", "")
+                cam_with = f"cam_{cam_bare}"
+                track_sql += " AND LOWER(camera) IN (?, ?, ?)"
+                params.extend([cam_norm, cam_bare, cam_with])
             
             rows = engine.conn.execute(track_sql, params).fetchall()
             for r in rows:
@@ -174,15 +207,11 @@ def evaluate_queries(
             frame_sql = "SELECT id, video, camera, t_abs, offset_s, snapshot, emb FROM frames WHERE 1=1"
             frame_params = []
             if parsed.location_status == "RESOLVED" and parsed.resolved_camera:
-                if mode in ["strict_camera", "vlm_off"]:
-                    cam_norm = parsed.resolved_camera.lower()
-                    cam_bare = cam_norm.replace("cam_", "")
-                    cam_with = f"cam_{cam_bare}"
-                    frame_sql += " AND LOWER(camera) IN (?, ?, ?)"
-                    frame_params.extend([cam_norm, cam_bare, cam_with])
-                else:
-                    frame_sql += " AND (LOWER(camera) LIKE ? OR LOWER(camera) LIKE ?)"
-                    frame_params.extend([f"%{parsed.resolved_camera.lower()}%", f"%cam_{parsed.resolved_camera.lower()}%"])
+                cam_norm = parsed.resolved_camera.lower()
+                cam_bare = cam_norm.replace("cam_", "")
+                cam_with = f"cam_{cam_bare}"
+                frame_sql += " AND LOWER(camera) IN (?, ?, ?)"
+                frame_params.extend([cam_norm, cam_bare, cam_with])
             for r in engine.conn.execute(frame_sql, frame_params).fetchall():
                 score = float(np.dot(query_emb, blob_to_emb(r["emb"])))
                 candidates.append(SearchResult(
@@ -212,7 +241,7 @@ def evaluate_queries(
                             try:
                                 d1 = datetime.datetime.fromisoformat(existing.timestamp)
                                 d2 = datetime.datetime.fromisoformat(cand.timestamp)
-                                if abs((d1 - d2).total_seconds()) <= 5.0:
+                                if abs((d1 - d2).total_seconds()) <= 3.0:
                                     is_dup = True
                                     break
                             except Exception:
@@ -222,10 +251,6 @@ def evaluate_queries(
                     if len(deduped) >= top_k:
                         break
                 results = deduped
-
-        # Optional VLM reranking
-        if mode == "vlm_off":
-            results, _ = engine.reranker.rerank(prompt, results, top_k=top_k)
 
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         latencies.append(elapsed_ms)
@@ -286,8 +311,9 @@ def main():
     print("=" * 90)
 
     dev_queries = [q for q in data if q.get("split") == "dev"]
+    dev2_queries = [q for q in data if q.get("split") == "dev2"]
     heldout_queries = [q for q in data if q.get("split") == "held-out"]
-    print(f"Loaded {len(dev_queries)} dev queries and {len(heldout_queries)} held-out queries.")
+    print(f"Loaded {len(dev_queries)} dev queries, {len(dev2_queries)} dev2 queries, and {len(heldout_queries)} held-out queries.")
 
     db_path = ROOT_DIR / "index_base" / "index.db"
     engine = SearchEngine(db_path=db_path, device="cuda:0")
@@ -298,28 +324,30 @@ def main():
     snaps_size_mb = sum(f.stat().st_size for f in snaps_dir.rglob("*") if f.is_file()) / (1024 * 1024)
     total_index_mb = db_size_mb + snaps_size_mb
 
-    # Index throughput (from Phase 1 measurement: 64.7s video in 19.34s)
-    throughput_rtf = 64.7 / 19.34
+    # Index throughput from Phase 1 measured run:
+    # 73.58 s of video across 5 clips processed in 53.24 s wall-clock time
+    throughput_rtf = 73.58 / 53.24
 
-    # Run Ablation Matrix
+    # Run Ablation Matrix (VLM Rerank off removed per item 5)
     modes = [
-        ("Full Pipeline (Phase 5)", "full"),
+        ("Full Pipeline (Ours)", "full"),
         ("Whole-Frame Baseline", "whole_frame"),
         ("No-Tracking Ablation", "no_tracking"),
         ("Prompt Variant: Bare", "bare_prompt"),
-        ("Prompt Variant: 'a photo of...'", "photo_prompt"),
-        ("Phase 6: + Strict Camera Match", "strict_camera"),
-        ("Phase 6: + VLM Rerank (Provider=off)", "vlm_off")
+        ("Prompt Variant: 'a photo of...'", "photo_prompt")
     ]
 
     ablation_results = []
 
-    print("\n--- Running Ablation Matrix on Dev Split ---")
+    print("\n--- Running Ablation Matrix on Dev and Dev2 Splits ---")
     for name, mode in modes:
         dev_res = evaluate_queries(dev_queries, engine, mode=mode, top_k=5)
-        # Run on held-out only for final report
-        heldout_res = evaluate_queries(heldout_queries, engine, mode=mode, top_k=5)
+        dev2_res = evaluate_queries(dev2_queries, engine, mode=mode, top_k=5)
         
+        heldout_res = None
+        if heldout_queries:
+            heldout_res = evaluate_queries(heldout_queries, engine, mode=mode, top_k=5)
+
         row = {
             "configuration": name,
             "mode": mode,
@@ -327,15 +355,20 @@ def main():
             "dev_r1": dev_res["recall_1"],
             "dev_r5": dev_res["recall_5"],
             "dev_time_err": dev_res["mean_time_error_s"],
-            "heldout_mrr": heldout_res["mrr"],
-            "heldout_r1": heldout_res["recall_1"],
-            "heldout_r5": heldout_res["recall_5"],
-            "heldout_time_err": heldout_res["mean_time_error_s"],
+            "dev2_mrr": dev2_res["mrr"],
+            "dev2_r1": dev2_res["recall_1"],
+            "dev2_r5": dev2_res["recall_5"],
+            "dev2_time_err": dev2_res["mean_time_error_s"],
             "latency_median_ms": dev_res["latency_median_ms"],
             "latency_p95_ms": dev_res["latency_p95_ms"]
         }
+        if heldout_res:
+            row["heldout_mrr"] = heldout_res["mrr"]
+            row["heldout_r1"] = heldout_res["recall_1"]
+            row["heldout_r5"] = heldout_res["recall_5"]
+
         ablation_results.append(row)
-        print(f"Config: {name:<32} | Dev R@1={dev_res['recall_1']*100:5.1f}% | Dev R@5={dev_res['recall_5']*100:5.1f}% | Held-Out R@1={heldout_res['recall_1']*100:5.1f}% | Held-Out R@5={heldout_res['recall_5']*100:5.1f}% | Latency={dev_res['latency_median_ms']:5.1f}ms")
+        print(f"Config: {name:<32} | Dev R@1={dev_res['recall_1']*100:5.1f}% | Dev2 R@1={dev2_res['recall_1']*100:5.1f}% | Dev2 R@5={dev2_res['recall_5']*100:5.1f}% | Latency={dev_res['latency_median_ms']:5.1f}ms")
 
     # Output full JSON
     output_data = {
@@ -358,19 +391,19 @@ def main():
 
     # Format Markdown Table
     print("\n" + "=" * 90)
-    print("ABLATION STUDY RESULTS (Dev and Held-Out Splits)")
+    print("ABLATION STUDY RESULTS (Dev and Dev2 Splits, Strict Camera & Label Match)")
     print("=" * 90)
-    print(f"| Configuration | Dev MRR | Dev R@1 | Dev R@5 | Held-Out MRR | Held-Out R@1 | Held-Out R@5 | Median Latency |")
+    print(f"| Configuration | Dev MRR | Dev R@1 | Dev R@5 | Dev2 MRR | Dev2 R@1 | Dev2 R@5 | Median Latency |")
     print(f"|---|---|---|---|---|---|---|---|")
     for r in ablation_results:
-        print(f"| {r['configuration']:<28} | {r['dev_mrr']:.4f} | {r['dev_r1']*100:5.1f}% | {r['dev_r5']*100:5.1f}% | {r['heldout_mrr']:.4f} | {r['heldout_r1']*100:5.1f}% | {r['heldout_r5']*100:5.1f}% | {r['latency_median_ms']:6.1f} ms |")
+        print(f"| {r['configuration']:<28} | {r['dev_mrr']:.4f} | {r['dev_r1']*100:5.1f}% | {r['dev_r5']*100:5.1f}% | {r['dev2_mrr']:.4f} | {r['dev2_r1']*100:5.1f}% | {r['dev2_r5']*100:5.1f}% | {r['latency_median_ms']:6.1f} ms |")
     print("=" * 90)
 
     print("\nSTORAGE & EFFICIENCY FOOTPRINT:")
     print(f"- SQLite Index Database: {db_size_mb:.2f} MB")
     print(f"- Snapshot Evidence Cache: {snaps_size_mb:.2f} MB")
     print(f"- Total Index Footprint: {total_index_mb:.2f} MB")
-    print(f"- Ingest Throughput: {throughput_rtf:.2f}x Real-Time ({throughput_rtf:.2f} video seconds processed per second)")
+    print(f"- Ingest Throughput: {throughput_rtf:.2f}x Real-Time (73.58 video seconds processed in 53.24 seconds wall-clock)")
 
 
 if __name__ == "__main__":
