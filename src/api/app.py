@@ -127,6 +127,7 @@ def ask(req: AskRequest):
             "offset_seconds": r.offset_seconds,
             "score": r.score,
             "label": r.label,
+            "color": r.color,
             "snapshot_url": f"/snapshot/{r.result_id}",
             "clip_url": f"/clip/{r.result_id}",
             "bbox_px": r.bbox_px,

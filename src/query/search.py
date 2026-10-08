@@ -6,11 +6,13 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 
+import cv2
 from src.index.db import get_db, blob_to_emb
 from src.query.parser import QueryParser, ParsedQuery
 from src.ingest.embed import SigLIPEmbedder
 from src.memory.aliases import AliasManager, point_in_polygon
 from src.query.rerank import VLMReranker
+from src.utils.color import extract_dominant_color, match_color_query
 
 
 @dataclass
@@ -24,6 +26,7 @@ class SearchResult:
     label: str
     video_path: str
     snapshot_path: str
+    color: Optional[str] = None
     bbox_px: Optional[List[int]] = None
     bbox_norm: Optional[List[float]] = None
     clip_path: Optional[str] = None
@@ -193,6 +196,29 @@ class SearchEngine:
 
             track_emb = blob_to_emb(row["emb"])
             score = float(np.dot(query_emb, track_emb))
+
+            # Color attribute extraction & query matching
+            det_color = "unknown"
+            snap_p = Path(row["snapshot"])
+            if not snap_p.exists():
+                snap_p = self.db_path.parent / row["snapshot"]
+            if snap_p.exists() and bbox_norm:
+                img = cv2.imread(str(snap_p))
+                if img is not None:
+                    h, w = img.shape[:2]
+                    bx1, by1 = max(0, int(bbox_norm[0] * w)), max(0, int(bbox_norm[1] * h))
+                    bx2, by2 = min(w, int(bbox_norm[2] * w)), min(h, int(bbox_norm[3] * h))
+                    crop = img[by1:by2, bx1:bx2]
+                    if crop.size > 0:
+                        det_color, _ = extract_dominant_color(crop)
+
+            # Check if query specified a color
+            color_match = match_color_query(query_text, det_color)
+            if color_match is True:
+                score += 0.08  # strong boost for exact color match
+            elif color_match is False:
+                score -= 0.05  # penalize mismatching color
+
             if similarity_threshold is None or score >= similarity_threshold:
                 bbox_px = json.loads(row["bbox_px"]) if row["bbox_px"] else None
                 candidates.append(SearchResult(
@@ -205,6 +231,7 @@ class SearchEngine:
                     label=row["label"],
                     video_path=row["video"],
                     snapshot_path=row["snapshot"],
+                    color=det_color,
                     bbox_px=bbox_px,
                     bbox_norm=bbox_norm
                 ))

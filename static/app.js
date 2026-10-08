@@ -241,6 +241,7 @@ function appendResultsCard(query, parsed, results, elapsedMs) {
             <span class="meta-badge badge-score">Match: ${(r.score * 100).toFixed(1)}%</span>
             <span class="meta-badge badge-cam">${escapeHtml(r.camera)}</span>
             <span class="meta-badge">${escapeHtml(r.label)}</span>
+            ${r.color && r.color !== 'unknown' ? `<span class="meta-badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); font-weight: 600;">Color: ${escapeHtml(r.color)}</span>` : ''}
             <span class="meta-badge">${formatTimestamp(r.timestamp)}</span>
             <span class="meta-badge">Offset: ${r.offset_seconds.toFixed(2)}s</span>
           </div>

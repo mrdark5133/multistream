@@ -132,6 +132,7 @@ def main():
                     "offset_seconds": r.offset_seconds,
                     "score": r.score,
                     "label": r.label,
+                    "color": r.color,
                     "video": r.video_path,
                     "snapshot": r.snapshot_path,
                     "clip": r.clip_path
@@ -156,7 +157,8 @@ def main():
 
     for i, r in enumerate(results):
         print(f"\n[Rank {i+1}] Score: {r.score:.4f} | Camera: {r.camera} | Time: {r.timestamp}")
-        print(f"         Type: {r.result_type} | Label: {r.label} | Offset: {r.offset_seconds:.1f}s")
+        color_str = f" | Color: {r.color}" if r.color and r.color != "unknown" else ""
+        print(f"         Type: {r.result_type} | Label: {r.label}{color_str} | Offset: {r.offset_seconds:.1f}s")
         print(f"         Snapshot: {r.snapshot_path}")
         if r.clip_path:
             print(f"         Clip:     {r.clip_path}")
