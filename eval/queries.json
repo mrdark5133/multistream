@@ -1,0 +1,262 @@
+[
+  {
+    "id": "dev_01",
+    "query": "a red car near cam_landscape",
+    "split": "dev",
+    "truth": [
+      {
+        "camera": "cam_landscape",
+        "start": "2026-10-08T18:00:00",
+        "end": "2026-10-08T18:00:06",
+        "label": "car"
+      }
+    ]
+  },
+  {
+    "id": "dev_02",
+    "query": "a bus at cam_landscape",
+    "split": "dev",
+    "truth": [
+      {
+        "camera": "cam_landscape",
+        "start": "2026-10-08T18:00:01",
+        "end": "2026-10-08T18:00:08",
+        "label": "bus"
+      }
+    ]
+  },
+  {
+    "id": "dev_03",
+    "query": "pedestrians walking at cam_landscape",
+    "split": "dev",
+    "truth": [
+      {
+        "camera": "cam_landscape",
+        "start": "2026-10-08T18:00:00",
+        "end": "2026-10-08T18:00:15",
+        "label": "person"
+      }
+    ]
+  },
+  {
+    "id": "dev_04",
+    "query": "a bus at cam_landscape2",
+    "split": "dev",
+    "truth": [
+      {
+        "camera": "cam_landscape2",
+        "start": "2026-10-08T19:00:05",
+        "end": "2026-10-08T19:00:27",
+        "label": "bus"
+      }
+    ]
+  },
+  {
+    "id": "dev_05",
+    "query": "a delivery truck at cam_landscape",
+    "split": "dev",
+    "truth": [
+      {
+        "camera": "cam_landscape",
+        "start": "2026-10-08T18:00:07",
+        "end": "2026-10-08T18:00:12",
+        "label": "truck"
+      }
+    ]
+  },
+  {
+    "id": "dev_06",
+    "query": "a person holding an umbrella in test_video01",
+    "split": "dev",
+    "truth": [
+      {
+        "camera": "test_video01",
+        "start": "2026-10-08T15:07:05",
+        "end": "2026-10-08T15:07:10",
+        "label": "umbrella"
+      }
+    ]
+  },
+  {
+    "id": "dev_07",
+    "query": "a cat in test_video02",
+    "split": "dev",
+    "truth": [
+      {
+        "camera": "test_video02",
+        "start": "2026-10-08T15:07:28",
+        "end": "2026-10-08T15:07:33",
+        "label": "cat"
+      }
+    ]
+  },
+  {
+    "id": "dev_08",
+    "query": "a motorbike in test_video03",
+    "split": "dev",
+    "truth": [
+      {
+        "camera": "test_video03",
+        "start": "2026-10-08T15:07:34",
+        "end": "2026-10-08T15:07:51",
+        "label": "motorbike"
+      }
+    ]
+  },
+  {
+    "id": "dev_09",
+    "query": "a van at cam_landscape",
+    "split": "dev",
+    "truth": [
+      {
+        "camera": "cam_landscape",
+        "start": "2026-10-08T18:00:04",
+        "end": "2026-10-08T18:00:15",
+        "label": "van"
+      }
+    ]
+  },
+  {
+    "id": "dev_10",
+    "query": "a person walking in test_video02",
+    "split": "dev",
+    "truth": [
+      {
+        "camera": "test_video02",
+        "start": "2026-10-08T15:07:26",
+        "end": "2026-10-08T15:07:32",
+        "label": "person"
+      }
+    ]
+  },
+  {
+    "id": "test_01",
+    "query": "a white car passing at cam_landscape",
+    "split": "held-out",
+    "truth": [
+      {
+        "camera": "cam_landscape",
+        "start": "2026-10-08T18:00:00",
+        "end": "2026-10-08T18:00:15",
+        "label": "car"
+      }
+    ]
+  },
+  {
+    "id": "test_02",
+    "query": "a large truck at cam_landscape2",
+    "split": "held-out",
+    "truth": [
+      {
+        "camera": "cam_landscape2",
+        "start": "2026-10-08T19:00:19",
+        "end": "2026-10-08T19:00:24",
+        "label": "truck"
+      }
+    ]
+  },
+  {
+    "id": "test_03",
+    "query": "people walking at cam_landscape2",
+    "split": "held-out",
+    "truth": [
+      {
+        "camera": "cam_landscape2",
+        "start": "2026-10-08T19:00:00",
+        "end": "2026-10-08T19:00:27",
+        "label": "person"
+      }
+    ]
+  },
+  {
+    "id": "test_04",
+    "query": "a motorcycle driving in test_video03",
+    "split": "held-out",
+    "truth": [
+      {
+        "camera": "test_video03",
+        "start": "2026-10-08T15:07:36",
+        "end": "2026-10-08T15:07:51",
+        "label": "motorcycle"
+      }
+    ]
+  },
+  {
+    "id": "test_05",
+    "query": "an animal in test_video02",
+    "split": "held-out",
+    "truth": [
+      {
+        "camera": "test_video02",
+        "start": "2026-10-08T15:07:28",
+        "end": "2026-10-08T15:07:32",
+        "label": "cat"
+      }
+    ]
+  },
+  {
+    "id": "test_06",
+    "query": "a utility cart at cam_landscape2",
+    "split": "held-out",
+    "truth": [
+      {
+        "camera": "cam_landscape2",
+        "start": "2026-10-08T19:00:03",
+        "end": "2026-10-08T19:00:07",
+        "label": "utility cart"
+      }
+    ]
+  },
+  {
+    "id": "test_07",
+    "query": "a semi-truck in test_video01",
+    "split": "held-out",
+    "truth": [
+      {
+        "camera": "test_video01",
+        "start": "2026-10-08T15:07:05",
+        "end": "2026-10-08T15:07:09",
+        "label": "semi-truck"
+      }
+    ]
+  },
+  {
+    "id": "test_08",
+    "query": "a person walking in test_video01",
+    "split": "held-out",
+    "truth": [
+      {
+        "camera": "test_video01",
+        "start": "2026-10-08T15:07:05",
+        "end": "2026-10-08T15:07:09",
+        "label": "person"
+      }
+    ]
+  },
+  {
+    "id": "test_09",
+    "query": "cars on the road in test_video03",
+    "split": "held-out",
+    "truth": [
+      {
+        "camera": "test_video03",
+        "start": "2026-10-08T15:07:35",
+        "end": "2026-10-08T15:07:51",
+        "label": "car"
+      }
+    ]
+  },
+  {
+    "id": "test_10",
+    "query": "an suv passing in test_video01",
+    "split": "held-out",
+    "truth": [
+      {
+        "camera": "test_video01",
+        "start": "2026-10-08T15:07:07",
+        "end": "2026-10-08T15:07:10",
+        "label": "suv"
+      }
+    ]
+  }
+]

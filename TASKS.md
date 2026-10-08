@@ -73,13 +73,13 @@ Rules: Check a box ONLY when the acceptance test for that task has passed. Inclu
 ---
 
 ## Phase 5: Evaluation and Ablation (Research Contribution)
-- [ ] 5.1 Implement evaluation harness `scripts/eval.py` and document metrics in `EVAL.md`
-- [ ] 5.2 Split test queries into dev and held-out evaluation sets
-- [ ] 5.3 Implement fair whole-frame retrieval baseline
-- [ ] 5.4 Execute full ablation matrix across all pipeline components
-- [ ] 5.5 Profile latency and index storage footprint per ablation row
-- [ ] 5.6 Output structured evaluation results in `eval/results/` and format report tables
-- [ ] Phase 5 Report generated and approved (`REPORTS/PHASE_5_REPORT.md`)
+- [x] 5.1 Implement evaluation harness `scripts/eval.py` and document metrics in `EVAL.md`
+- [x] 5.2 Split test queries into dev and held-out evaluation sets
+- [x] 5.3 Implement fair whole-frame retrieval baseline
+- [x] 5.4 Execute full ablation matrix across all pipeline components
+- [x] 5.5 Profile latency and index storage footprint per ablation row
+- [x] 5.6 Output structured evaluation results in `eval/results/` and format report tables
+- [x] Phase 5 Report generated and approved (`REPORTS/PHASE_5_REPORT.md`)
 
 ---
 
