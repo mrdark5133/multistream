@@ -6,6 +6,7 @@ import uuid
 import datetime
 import threading
 import logging
+import subprocess
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
@@ -297,6 +298,11 @@ class LiveStreamWorker:
         finally:
             cap.release()
             writer.release()
+
+            # Ensure recorded MP4 is transcoded to standard HTML5/IDE-compatible H.264
+            if rec_path.exists() and rec_path.stat().st_size > 0:
+                convert_to_h264(rec_path)
+
             # Update video duration in DB
             with conn:
                 conn.execute(
@@ -305,3 +311,41 @@ class LiveStreamWorker:
                 )
             self.stats["status"] = "finished"
             logger.info(f"[LIVE] Finished stream for '{self.camera_name}'. Total tracks: {len(tracks_seen)}")
+
+
+def convert_to_h264(video_path: Path) -> bool:
+    """
+    Transcode an MPEG-4 (mp4v) recording into web/IDE-standard H.264 (avc1/yuv420p)
+    so that VSCode, Chromium, and HTML5 video tags can play it directly.
+    """
+    winget_ffmpeg = Path(r"C:\Users\Harivarman R\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.2-full_build\bin\ffmpeg.exe")
+    ffmpeg_exe = str(winget_ffmpeg) if winget_ffmpeg.exists() else os.environ.get("FFMPEG_BIN", "ffmpeg")
+
+    tmp_path = video_path.with_name(f"temp_{video_path.name}")
+    cmd = [
+        ffmpeg_exe, "-y",
+        "-i", str(video_path),
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-preset", "ultrafast",
+        "-crf", "23",
+        "-an",
+        str(tmp_path)
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        if res.returncode == 0 and tmp_path.exists() and tmp_path.stat().st_size > 0:
+            tmp_path.replace(video_path)
+            logger.info(f"[LIVE] Successfully transcoded {video_path.name} to standard H.264")
+            return True
+        else:
+            logger.warning(f"[LIVE] Transcode returned code {res.returncode}: {res.stderr[:200]}")
+    except Exception as e:
+        logger.warning(f"[LIVE] Error transcoding {video_path.name}: {e}")
+    finally:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+    return False
