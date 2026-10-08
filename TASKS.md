@@ -28,6 +28,7 @@ Rules: Check a box ONLY when the acceptance test for that task has passed. Inclu
 - [ ] 1.7 Incremental indexing with duplicate prevention
 - [ ] 1.8 CLI tool `scripts/ingest.py` logging duration, tracks, frames, wall time, VRAM
 - [ ] 1.9 Multi-video tracker isolation test preventing track state leakage
+- [ ] 1.10 Video rotation normalization: read rotation metadata per video (tags/side data), apply rotation before detection/embedding, and store applied rotation in `videos` record
 - [ ] Phase 1 Report generated and approved (`REPORTS/PHASE_1_REPORT.md`)
 
 ---

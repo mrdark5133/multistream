@@ -21,24 +21,24 @@ This document records technical and design decisions, recording rationale, trade
 ---
 
 ### [2026-10-08] DECISION-003: Embedder Co-existence on 4 GB VRAM (RTX 3050)
-- **Status**: Measured & Decided
-- **Context**: Profiled YOLO-World (`yolov8s-worldv2.pt`) co-loaded with both SigLIP models in FP16 on real footage (`footage/test_gate.mp4` frame).
+- **Status**: Measured & Decided (Amended with Windows-Closed Data & Upright Footage)
+- **Context**: Profiled YOLO-World (`yolov8s-worldv2.pt`) co-loaded with both SigLIP models in FP16 on upright footage (`footage/test_video01.mp4` frame).
 - **Empirical Measurements**:
   1. **`google/siglip-so400m-patch14-384` (FP16)**:
-     - Peak PyTorch Allocated: **2379.7 MB**
-     - Total System VRAM Used: **3647.0 MB** / 4094.0 MB
-     - Headroom Remaining: **246.0 MB** (6.0% buffer)
+     - Peak PyTorch Allocated: **2381.2 MB**
+     - Condition (a) (Desktop apps open): Total Used = **3647.0 MB** / 4094.0 MB | Headroom = **246.0 MB** (6.0% buffer) -> **FAILS** the 3.4 GB rule.
+     - Condition (b) (App windows closed, background processes running): Total Used = **3037.0 MB** / 4094.0 MB | Headroom = **856.0 MB** (20.9% buffer) -> **PASSES** the 3.4 GB rule.
      - Single Crop Inference: **464.1 ms**
-     - Headroom risk: Batch size must be restricted to 1 during ingest to avoid CUDA OOM.
+     - WDDM Spill-to-Host Behavior: Under Windows WDDM 3.x, if allocations exceed physical VRAM, memory spills into host system RAM / pagefile, degrading inference throughput rather than immediately raising OutOfMemory. Batching crops with SO400M risks severe paging latency spikes.
   2. **`google/siglip-base-patch16-224` (FP16)**:
-     - Peak PyTorch Allocated: **1086.2 MB**
-     - Total System VRAM Used: **2279.0 MB** / 4094.0 MB
-     - Headroom Remaining: **1614.0 MB** (39.4% buffer)
+     - Peak PyTorch Allocated: **1086.1 MB**
+     - Total System VRAM Used (Windows closed): **1670.0 MB** / 4094.0 MB | Headroom = **2223.0 MB** (54.3% buffer).
+     - Total System VRAM Used (Condition a): **2279.0 MB** / 4094.0 MB | Headroom = **1614.0 MB** (39.4% buffer).
      - Single Crop Inference: **198.6 ms** (2.34x faster)
 - **Decision**:
   - Support both models cleanly via config/CLI (`index_<embedder>`).
-  - Primary default for Phase 1 ingest tests: `google/siglip-base-patch16-224` to ensure batch stability without triggering GPU OOM crashes on the 4 GB GPU.
-  - Retain `google/siglip-so400m-patch14-384` with strict single-crop batching (`batch_size=1`) and text-tower CPU offloading as an available high-accuracy option.
+  - Primary default for Phase 1 ingest tests: `google/siglip-base-patch16-224` to ensure batch stability without triggering GPU OOM or WDDM spill-to-host latency degradation on the 4 GB GPU.
+  - Retain `google/siglip-so400m-patch14-384` with strict single-crop batching (`batch_size=1`) and text-tower CPU offloading as an available high-accuracy option when desktop windows are closed.
 
 ---
 
