@@ -187,4 +187,33 @@ class HybridDetector:
                         "source": "yolo_world"
                     })
 
-        return detections
+        # 3. Class-group NMS (IoU 0.60) across fused detections
+        return self._apply_class_group_nms(detections, iou_thresh=0.60)
+
+    @staticmethod
+    def _apply_class_group_nms(detections: List[Dict[str, Any]], iou_thresh: float = 0.60) -> List[Dict[str, Any]]:
+        """Group detections by coarse category group and suppress boxes with IoU >= iou_thresh."""
+        if len(detections) <= 1:
+            return detections
+
+        by_group: Dict[str, List[Dict[str, Any]]] = {}
+        for d in detections:
+            grp = d.get("group", get_object_group(d["label"]))
+            by_group.setdefault(grp, []).append(d)
+
+        kept: List[Dict[str, Any]] = []
+        for grp, group_dets in by_group.items():
+            group_dets.sort(key=lambda x: x["conf"], reverse=True)
+            group_kept: List[Dict[str, Any]] = []
+            for d in group_dets:
+                b = np.array(d["bbox"])
+                suppressed = False
+                for kd in group_kept:
+                    kb = np.array(kd["bbox"])
+                    if box_iou(b, kb) >= iou_thresh:
+                        suppressed = True
+                        break
+                if not suppressed:
+                    group_kept.append(d)
+            kept.extend(group_kept)
+        return kept

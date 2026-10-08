@@ -233,33 +233,49 @@ In an intermediate conversation step, a temporary script (`scripts/save_inspect_
 
 ---
 
-### Requirement 3: `test_video01.mp4` Track Breakdown & Formal Retraction
+### Requirement 3: `test_video01.mp4` Track Breakdown, $t=3.0\text{s}$ Duplicate Analysis & Class-Group NMS
 
-Raw audit of all 8 stitched tracks in `test_video01.mp4`:
+#### 1. Analysis at $t=3.0\text{s}$ (Frame $t=2.980\text{s}$)
+- **Active Tracks Present at $t=3.0\text{s}$:**
+  - Track 14: `person` | conf: 0.918 | bbox: `[105, 659, 173, 850]`
+  - Track 25: `person` | conf: 0.623 | bbox: `[201, 669, 216, 721]`
+  - Track 26: `person` | conf: 0.638 | bbox: `[218, 669, 238, 723]`
+  - Track 28: `person` | conf: 0.643 | bbox: `[246, 663, 263, 709]`
+  - Track 35: `person` | conf: 0.513 | bbox: `[266, 675, 290, 730]`
+  *(Track 23 had ended its first segment at $t=2.574\text{s}$ and resumed as Track 40 at $t=3.115\text{s}$, merged via stitching).*
+
+- **Pairwise IoU Matrix Between Concurrent Person Tracks at $t=3.0\text{s}$:**
+```text
+  Track 14 vs Track 25: IoU = 0.0000 | Box1: [105, 659, 173, 850] | Box2: [201, 669, 216, 721]
+  Track 14 vs Track 26: IoU = 0.0000 | Box1: [105, 659, 173, 850] | Box2: [218, 669, 238, 723]
+  Track 14 vs Track 28: IoU = 0.0000 | Box1: [105, 659, 173, 850] | Box2: [246, 663, 263, 709]
+  Track 14 vs Track 35: IoU = 0.0000 | Box1: [105, 659, 173, 850] | Box2: [266, 675, 290, 730]
+  Track 25 vs Track 26: IoU = 0.0000 | Box1: [201, 669, 216, 721] | Box2: [218, 669, 238, 723]
+  Track 25 vs Track 28: IoU = 0.0000 | Box1: [201, 669, 216, 721] | Box2: [246, 663, 263, 709]
+  Track 25 vs Track 35: IoU = 0.0000 | Box1: [201, 669, 216, 721] | Box2: [266, 675, 290, 730]
+  Track 26 vs Track 28: IoU = 0.0000 | Box1: [218, 669, 238, 723] | Box2: [246, 663, 263, 709]
+  Track 26 vs Track 35: IoU = 0.0000 | Box1: [218, 669, 238, 723] | Box2: [266, 675, 290, 730]
+  Track 28 vs Track 35: IoU = 0.0000 | Box1: [246, 663, 263, 709] | Box2: [266, 675, 290, 730]
+```
+- **Spatial Separation:** All pairwise IoUs between active person tracks at $t=3.0\text{s}$ are **0.0000**. Track 14 is the large moving foreground walking person ($x \in [105, 173]$), whereas Tracks 25, 26, 28, 35 are tiny distant background detections ($x \in [201, 290]$) spaced horizontally along the curb.
+- **Annotated Frame Path:** [`eval/test_video01_t3s_annotated.jpg`](file:///c:/projects/MULTIStream/eval/test_video01_t3s_annotated.jpg) (annotated with track IDs, labels, and bounding boxes).
+
+#### 2. Raw Detections Overlap & Pre-Tracking Class-Group NMS
+While active tracker boxes were disjoint, inspection of the raw detections feeding into the tracker revealed overlapping duplicate candidate boxes within the same frame (e.g. `[218, 669, 237, 723]` vs `[222, 670, 242, 722]`, $\text{IoU} = 0.6065 > 0.50$).
+Implemented **Class-Group NMS** ($\text{IoU} = 0.60$) across all fused detections before feeding them to ByteTrack.
+
+#### 3. Rerun Comparison Across All 5 Clips (Before vs After Class-Group NMS)
 
 ```text
-Total stitched tracks in test_video01: 8
-Merges occurred: 1
-  Merge: {'base_id': 23, 'cand_id': 40, 'label': 'person', 'gap_s': 0.541, 'center_dist': 0.0895, 'cosine_sim': 0.8959}
-
-Track ID | Label        | Group   | Hits | Start Time | End Time | Duration
----------+--------------+---------+------+------------+----------+---------
-       1 | truck        | vehicle |   34 |     0.000s |   2.235s |   2.235s
-      14 | person       | person  |   47 |     1.084s |   4.199s |   3.115s
-      23 | person       | person  |   25 |     1.558s |   4.199s |   2.641s
-      25 | person       | person  |   22 |     2.032s |   3.454s |   1.422s
-      26 | person       | person  |   25 |     2.032s |   3.793s |   1.761s
-      28 | person       | person  |   25 |     2.099s |   3.928s |   1.829s
-      35 | person       | person  |   14 |     2.709s |   3.793s |   1.084s
-      39 | car          | vehicle |   18 |     3.048s |   4.199s |   1.151s
-
-Class Breakdown: Persons = 6, Vehicles = 2
+Clip                         | Real | Filtered (Before) | Stitched (Before) | Trk/Obj (Before) | Filtered (After) | Stitched (After) | Trk/Obj (After)
+------------------------------------------------------------------------------------------------------------------------------------------------
+footage/test_video01.mp4     |    1 |                 9 |                 8 |             8.00 |                9 |                8 |            8.00
+footage/test_video02.mp4     |    1 |                 1 |                 1 |             1.00 |                1 |                1 |            1.00
+footage/test_video03.mp4     |    3 |                 7 |                 7 |             2.33 |                7 |                7 |            2.33
+footage/test_landscape.mp4   |    8 |                44 |                40 |             5.00 |               44 |               40 |            5.00
+footage/test_landscape2.mp4  |    6 |                26 |                23 |             3.83 |               25 |               22 |            3.67
 ```
-
-#### FORMAL RETRACTION OF "PARKED VEHICLES" EXPLANATION
-- **Retraction:** The previous claim that `test_video01.mp4` grew from 7 to 8 tracks because "stationary parked vehicles were detected" is **RETRACTED**.
-- **Reality:** Out of the 8 surviving tracks, **6 are person tracks** (Tracks 14, 23, 25, 26, 28, 35) and only **2 are vehicles** (Track 1 truck, Track 39 car).
-- **Root Cause:** In `test_video01.mp4`, there is only **1 actual walking person**. However, ByteTrack suffered extreme track fragmentation on this person (spawning multiple concurrent overlapping track IDs between $t=1.0\text{s}$ and $t=4.2\text{s}$). The stitching module only merged Pair (23, 40); it failed to merge the other 5 person fragments because they were running concurrently in overlapping frames (gap $< 0$ s), meaning spatio-temporal stitching rules did not unify them.
+*(On `test_landscape2.mp4`, Class-Group NMS eliminated 1 redundant track, lowering tracks per real object from 3.83 to 3.67).*
 
 ---
 
@@ -285,21 +301,61 @@ Raw ffprobe output:
 - **Duration:** 15.082 seconds
 - **Frame Count:** 452 frames
 
-#### Accurate Per-Stage Latency Table (`test_landscape.mp4`, 2560x1440 @ 29.97 FPS, 452 frames)
-Measured across 3 complete runs (stride 2 = 226 detected frames):
+#### Latency Measurement on `test_landscape.mp4` (2560x1440 @ 29.970 FPS, 452 frames, Stride 2 = 226 Detected Frames)
+Re-run measured across 3 complete runs:
 
-| Pipeline Stage | Run 1 (s) | Run 2 (s) | Run 3 (s) | Median (s) | Pct Total |
-|---|---|---|---|---|---|
-| **decode_and_rotation** | 2.759 | 2.726 | 2.733 | **2.733** | 18.8% |
-| **detection** | 11.816 | 10.588 | 10.622 | **10.622** | **73.1%** |
-| **tracking** | 0.659 | 0.652 | 0.648 | **0.652** | 4.5% |
-| **snapshots** | 0.099 | 0.072 | 0.074 | **0.074** | 0.5% |
-| **crop_embedding** | 0.444 | 0.300 | 0.277 | **0.300** | 2.1% |
-| **frame_embedding** | 0.050 | 0.049 | 0.056 | **0.050** | 0.3% |
-| **db_write** | 0.016 | 0.018 | 0.018 | **0.018** | 0.1% |
-| **color** | 0.194 | 0.093 | 0.091 | **0.093** | 0.6% |
-| **stitching** | 0.005 | 0.004 | 0.003 | **0.004** | 0.0% |
-| **Total Pipeline** | **16.041** | **14.502** | **14.522** | **14.522** | **100.0%** |
+```text
+Pipeline Stage           | Run 1 (s) | Run 2 (s) | Run 3 (s) | Median (s) | Pct Total
+--------------------------------------------------------------------------------
+decode_and_rotation      |     2.824 |     2.877 |     2.846 |      2.846 |     18.8%
+detection                |    11.752 |    10.994 |    10.877 |     10.994 |     72.6%
+tracking                 |     0.672 |     0.671 |     0.680 |      0.672 |      4.4%
+snapshots                |     0.106 |     0.080 |     0.073 |      0.080 |      0.5%
+crop_embedding           |     0.479 |     0.350 |     0.287 |      0.350 |      2.3%
+frame_embedding          |     0.049 |     0.049 |     0.053 |      0.049 |      0.3%
+db_write                 |     0.016 |     0.019 |     0.019 |      0.019 |      0.1%
+color                    |     0.195 |     0.097 |     0.090 |      0.097 |      0.6%
+stitching                |     0.003 |     0.003 |     0.003 |      0.003 |      0.0%
+total                    |    16.096 |    15.140 |    14.927 |     15.140 |    100.0%
+```
+
+---
+
+### Requirement 5: Regenerated Inspection Crops (HybridDetector at Stride 5)
+
+Deleted previous crops and regenerated from the real `HybridDetector` sampled at **stride 5**.
+Each crop is saved with the actual detector label, source clip name, and frame index in [`eval/inspect_crops/`](file:///c:/projects/MULTIStream/eval/inspect_crops):
+
+1. **Target `chair` (10 crops, all from `test_landscape2.mp4`):**
+   - [`eval/inspect_crops/chair_test_landscape2_f0030_01.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/chair_test_landscape2_f0030_01.jpg) (conf: 0.314)
+   - [`eval/inspect_crops/chair_test_landscape2_f0030_02.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/chair_test_landscape2_f0030_02.jpg) (conf: 0.309)
+   - [`eval/inspect_crops/chair_test_landscape2_f0045_03.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/chair_test_landscape2_f0045_03.jpg) (conf: 0.263)
+   - [`eval/inspect_crops/chair_test_landscape2_f0050_04.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/chair_test_landscape2_f0050_04.jpg) (conf: 0.415)
+   - [`eval/inspect_crops/chair_test_landscape2_f0050_05.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/chair_test_landscape2_f0050_05.jpg) (conf: 0.294)
+   - [`eval/inspect_crops/chair_test_landscape2_f0055_06.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/chair_test_landscape2_f0055_06.jpg) (conf: 0.336)
+   - [`eval/inspect_crops/chair_test_landscape2_f0100_07.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/chair_test_landscape2_f0100_07.jpg) (conf: 0.298)
+   - [`eval/inspect_crops/chair_test_landscape2_f0105_08.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/chair_test_landscape2_f0105_08.jpg) (conf: 0.298)
+   - [`eval/inspect_crops/chair_test_landscape2_f0105_09.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/chair_test_landscape2_f0105_09.jpg) (conf: 0.281)
+   - [`eval/inspect_crops/chair_test_landscape2_f0115_10.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/chair_test_landscape2_f0115_10.jpg) (conf: 0.385)
+
+2. **Target `bicycle` (10 crops, all from `test_landscape2.mp4`):**
+   - [`eval/inspect_crops/bicycle_test_landscape2_f0025_01.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/bicycle_test_landscape2_f0025_01.jpg) (conf: 0.359)
+   - [`eval/inspect_crops/bicycle_test_landscape2_f0030_02.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/bicycle_test_landscape2_f0030_02.jpg) (conf: 0.267)
+   - [`eval/inspect_crops/bicycle_test_landscape2_f0035_03.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/bicycle_test_landscape2_f0035_03.jpg) (conf: 0.286)
+   - [`eval/inspect_crops/bicycle_test_landscape2_f0075_04.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/bicycle_test_landscape2_f0075_04.jpg) (conf: 0.280)
+   - [`eval/inspect_crops/bicycle_test_landscape2_f0080_05.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/bicycle_test_landscape2_f0080_05.jpg) (conf: 0.252)
+   - [`eval/inspect_crops/bicycle_test_landscape2_f0115_06.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/bicycle_test_landscape2_f0115_06.jpg) (conf: 0.287)
+   - [`eval/inspect_crops/bicycle_test_landscape2_f0120_07.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/bicycle_test_landscape2_f0120_07.jpg) (conf: 0.328)
+   - [`eval/inspect_crops/bicycle_test_landscape2_f0135_08.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/bicycle_test_landscape2_f0135_08.jpg) (conf: 0.319)
+   - [`eval/inspect_crops/bicycle_test_landscape2_f0155_09.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/bicycle_test_landscape2_f0155_09.jpg) (conf: 0.269)
+   - [`eval/inspect_crops/bicycle_test_landscape2_f0205_10.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/bicycle_test_landscape2_f0205_10.jpg) (conf: 0.314)
+
+3. **Target `clock` (4 crops, all available from `test_video01.mp4`):**
+   *(Note: Exactly 4 detections of clock were produced by HybridDetector across all 5 dev clips at stride 5; all 4 are saved).*
+   - [`eval/inspect_crops/clock_test_video01_f0100_01.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/clock_test_video01_f0100_01.jpg) (conf: 0.255)
+   - [`eval/inspect_crops/clock_test_video01_f0115_02.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/clock_test_video01_f0115_02.jpg) (conf: 0.330)
+   - [`eval/inspect_crops/clock_test_video01_f0120_03.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/clock_test_video01_f0120_03.jpg) (conf: 0.391)
+   - [`eval/inspect_crops/clock_test_video01_f0125_04.jpg`](file:///c:/projects/MULTIStream/eval/inspect_crops/clock_test_video01_f0125_04.jpg) (conf: 0.406)
 
 ---
 
