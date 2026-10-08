@@ -74,7 +74,10 @@ class SigLIPEmbedder:
             current_batch = pil_images[idx : idx + batch_size]
             try:
                 inputs = self.processor(images=current_batch, return_tensors="pt")
-                inputs = {k: v.to(self.device) for k, v in inputs.items()}
+                inputs = {
+                    k: (v.to(self.device, dtype=self.dtype) if v.is_floating_point() else v.to(self.device))
+                    for k, v in inputs.items()
+                }
                 
                 with torch.no_grad():
                     out = self.model.get_image_features(**inputs)

@@ -84,6 +84,7 @@ def load_yolo_world(
     # Move model to target device
     if device.startswith("cuda") and torch.cuda.is_available():
         yolo.to(device)
+    yolo.float()
     
     return yolo, classes
 

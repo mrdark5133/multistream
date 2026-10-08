@@ -180,6 +180,9 @@ class LiveStreamWorker:
         tracks_seen = set()
         active_preview_boxes = []
 
+        if hasattr(self.yolo, "float"):
+            self.yolo.float()
+
         try:
             while self.is_running:
                 ret, frame = cap.read()
@@ -206,103 +209,106 @@ class LiveStreamWorker:
                 curr_iso = curr_dt.isoformat()
 
                 if frame_count % self.stride == 0:
-                    # Run YOLO tracking with bytetrack
-                    results = self.yolo.track(
-                        frame,
-                        persist=True,
-                        tracker="bytetrack.yaml",
-                        conf=self.conf_thresh,
-                        imgsz=self.imgsz,
-                        verbose=False
-                    )
+                    try:
+                        # Run YOLO tracking with bytetrack
+                        results = self.yolo.track(
+                            frame,
+                            persist=True,
+                            tracker="bytetrack.yaml",
+                            conf=self.conf_thresh,
+                            imgsz=self.imgsz,
+                            verbose=False
+                        )
 
-                    new_boxes = []
-                    if results and len(results) > 0 and results[0].boxes is not None and len(results[0].boxes) > 0:
-                        boxes = results[0].boxes
-                        cls_ids = boxes.cls.cpu().numpy().astype(int)
-                        confs = boxes.conf.cpu().numpy().astype(float)
-                        xyxy = boxes.xyxy.cpu().numpy().astype(int)
+                        new_boxes = []
+                        if results and len(results) > 0 and results[0].boxes is not None and len(results[0].boxes) > 0:
+                            boxes = results[0].boxes
+                            cls_ids = boxes.cls.cpu().numpy().astype(int)
+                            confs = boxes.conf.cpu().numpy().astype(float)
+                            xyxy = boxes.xyxy.cpu().numpy().astype(int)
 
-                        if boxes.id is not None:
-                            track_ids = boxes.id.cpu().numpy().astype(int)
-                        else:
-                            track_ids = [self._assign_fallback_id(xyxy[i]) for i in range(len(boxes))]
+                            if boxes.id is not None:
+                                track_ids = boxes.id.cpu().numpy().astype(int)
+                            else:
+                                track_ids = [self._assign_fallback_id(xyxy[i]) for i in range(len(boxes))]
 
-                        for cls_id, conf, box_px, trk_id in zip(cls_ids, confs, xyxy, track_ids):
-                            label = self.classes[cls_id] if cls_id < len(self.classes) else "object"
-                            global_trk_id = f"{self.camera_name}_trk_{trk_id}"
+                            for cls_id, conf, box_px, trk_id in zip(cls_ids, confs, xyxy, track_ids):
+                                label = self.classes[cls_id] if cls_id < len(self.classes) else "object"
+                                global_trk_id = f"{self.camera_name}_trk_{trk_id}"
 
-                            bx1, by1, bx2, by2 = int(box_px[0]), int(box_px[1]), int(box_px[2]), int(box_px[3])
-                            bx1, by1 = max(0, bx1), max(0, by1)
-                            bx2, by2 = min(width, bx2), min(height, by2)
-                            crop = frame[by1:by2, bx1:bx2]
+                                bx1, by1, bx2, by2 = int(box_px[0]), int(box_px[1]), int(box_px[2]), int(box_px[3])
+                                bx1, by1 = max(0, bx1), max(0, by1)
+                                bx2, by2 = min(width, bx2), min(height, by2)
+                                crop = frame[by1:by2, bx1:bx2]
 
-                            if crop.size == 0:
-                                continue
+                                if crop.size == 0:
+                                    continue
 
-                            # Detect dominant color
-                            detected_color, color_conf = extract_dominant_color(crop)
-                            new_boxes.append((bx1, by1, bx2, by2, f"#{trk_id} {detected_color} {label}"))
+                                # Detect dominant color
+                                detected_color, color_conf = extract_dominant_color(crop)
+                                new_boxes.append((bx1, by1, bx2, by2, f"#{trk_id} {detected_color} {label}"))
 
-                            # Save annotated snapshot
-                            snap_filename = f"track_{trk_id}.jpg"
-                            snap_path = self.snapshots_dir / snap_filename
-                            rel_snap_path = f"snapshots/{self.camera_name}/{snap_filename}".replace("\\", "/")
+                                # Save annotated snapshot
+                                snap_filename = f"track_{trk_id}.jpg"
+                                snap_path = self.snapshots_dir / snap_filename
+                                rel_snap_path = f"snapshots/{self.camera_name}/{snap_filename}".replace("\\", "/")
 
-                            annotated = create_annotated_snapshot(
-                                frame,
-                                [bx1, by1, bx2, by2],
-                                f"{detected_color} {label}",
-                                trk_id,
-                                conf
-                            )
-                            cv2.imwrite(str(snap_path), annotated)
+                                annotated = create_annotated_snapshot(
+                                    frame,
+                                    [bx1, by1, bx2, by2],
+                                    f"{detected_color} {label}",
+                                    trk_id,
+                                    conf
+                                )
+                                cv2.imwrite(str(snap_path), annotated)
 
-                            # Compute crop embedding
-                            crop_emb = self.embedder.embed_images([crop])[0]
-                            emb_blob = emb_to_blob(crop_emb)
+                                # Compute crop embedding
+                                crop_emb = self.embedder.embed_images([crop])[0]
+                                emb_blob = emb_to_blob(crop_emb)
 
-                            # Normalized bbox
-                            bbox_norm = [
-                                round(bx1 / width, 4),
-                                round(by1 / height, 4),
-                                round(bx2 / width, 4),
-                                round(by2 / height, 4)
-                            ]
+                                # Normalized bbox
+                                bbox_norm = [
+                                    round(bx1 / width, 4),
+                                    round(by1 / height, 4),
+                                    round(bx2 / width, 4),
+                                    round(by2 / height, 4)
+                                ]
 
-                            # Insert / Update track in SQLite
-                            track_rec = {
-                                "id": global_trk_id,
-                                "video": rel_rec_path,
-                                "camera": self.camera_name,
-                                "track_id": int(trk_id),
-                                "label": label,
-                                "t_start": curr_iso,
-                                "t_end": curr_iso,
-                                "t_best": curr_iso,
-                                "offset_start": offset_s,
-                                "offset_end": offset_s,
-                                "offset_best": offset_s,
-                                "bbox_px": json.dumps([bx1, by1, bx2, by2]),
-                                "bbox_norm": json.dumps(bbox_norm),
-                                "snapshot": rel_snap_path,
-                                "emb": emb_blob
-                            }
-                            insert_track(conn, track_rec)
-
-                            if trk_id not in tracks_seen:
-                                tracks_seen.add(trk_id)
-                                self.stats["tracks_indexed"] = len(tracks_seen)
-                                self.stats["latest_track"] = {
+                                # Insert / Update track in SQLite
+                                track_rec = {
                                     "id": global_trk_id,
+                                    "video": rel_rec_path,
+                                    "camera": self.camera_name,
+                                    "track_id": int(trk_id),
                                     "label": label,
-                                    "color": detected_color,
-                                    "timestamp": curr_iso,
-                                    "offset_s": offset_s
+                                    "t_start": curr_iso,
+                                    "t_end": curr_iso,
+                                    "t_best": curr_iso,
+                                    "offset_start": offset_s,
+                                    "offset_end": offset_s,
+                                    "offset_best": offset_s,
+                                    "bbox_px": json.dumps([bx1, by1, bx2, by2]),
+                                    "bbox_norm": json.dumps(bbox_norm),
+                                    "snapshot": rel_snap_path,
+                                    "emb": emb_blob
                                 }
-                                self.stats["latest_snapshot"] = rel_snap_path
+                                insert_track(conn, track_rec)
 
-                    active_preview_boxes = new_boxes
+                                if trk_id not in tracks_seen:
+                                    tracks_seen.add(trk_id)
+                                    self.stats["tracks_indexed"] = len(tracks_seen)
+                                    self.stats["latest_track"] = {
+                                        "id": global_trk_id,
+                                        "label": label,
+                                        "color": detected_color,
+                                        "timestamp": curr_iso,
+                                        "offset_s": offset_s
+                                    }
+                                    self.stats["latest_snapshot"] = rel_snap_path
+
+                        active_preview_boxes = new_boxes
+                    except Exception as detect_err:
+                        logger.warning(f"[LIVE] Non-fatal error during frame detection/embedding: {detect_err}")
 
                 # Generate live preview frame for Web UI video feed
                 if frame_count % 2 == 0 or self.latest_jpeg is None:
