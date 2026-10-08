@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS tracks (
     t_best TEXT NOT NULL,           -- Absolute ISO-8601 of best frame
     offset_start REAL NOT NULL,     -- Seconds into video
     offset_end REAL NOT NULL,
+    offset_best REAL NOT NULL DEFAULT 0.0,
     bbox_px TEXT NOT NULL,          -- JSON [x1, y1, x2, y2]
     bbox_norm TEXT NOT NULL,        -- JSON [x1, y1, x2, y2]
     snapshot TEXT NOT NULL,         -- Relative path to JPEG

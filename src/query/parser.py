@@ -13,12 +13,14 @@ class ParsedQuery:
     location: Optional[str]
     t_start: Optional[str]        # ISO-8601 string or None
     t_end: Optional[str]          # ISO-8601 string or None
+    location_status: str = "NONE" # "RESOLVED" | "UNRESOLVED" | "NONE"
+    resolved_camera: Optional[str] = None
     provider: str = "rules"
 
 
 # Location preposition patterns
 LOCATION_PATTERNS = [
-    re.compile(r"\b(?:at|near|in|by|around|towards)\s+(?:the\s+)?([a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+)?)\b", re.IGNORECASE),
+    re.compile(r"\b(?:at|near|in|by|around|towards|through)\s+(?:the\s+)?([a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+)?)\b", re.IGNORECASE),
     re.compile(r"\bcamera\s+([a-zA-Z0-9_\-]+)\b", re.IGNORECASE),
     re.compile(r"\b(cam_[a-zA-Z0-9_\-]+)\b", re.IGNORECASE)
 ]
@@ -36,9 +38,14 @@ class QueryParser:
     Offline Rule-based Natural Language Query Parser.
     Extracts visual object prompt, location referent, and temporal window without external LLM dependencies.
     """
-    def __init__(self, known_cameras: Optional[List[str]] = None, known_aliases: Optional[List[str]] = None):
+    def __init__(self, known_cameras: Optional[List[str]] = None, known_aliases: Optional[Any] = None):
         self.known_cameras = [c.lower() for c in (known_cameras or [])]
-        self.known_aliases = [a.lower() for a in (known_aliases or [])]
+        if isinstance(known_aliases, dict):
+            self.alias_map = {k.lower(): v for k, v in known_aliases.items()}
+            self.known_aliases = list(self.alias_map.keys())
+        else:
+            self.known_aliases = [a.lower() for a in (known_aliases or [])]
+            self.alias_map = {a: a for a in self.known_aliases}
 
     def parse(
         self,
@@ -55,22 +62,42 @@ class QueryParser:
 
         # 2. Parse and remove location referent
         location = None
+        location_status = "NONE"
+        resolved_camera = None
+
         for pat in LOCATION_PATTERNS:
             m = pat.search(cleaned)
             if m:
                 cand = m.group(1).strip()
-                # Check if matches known cameras, aliases, or generic location tokens
                 cand_lower = cand.lower()
-                if (cand_lower in self.known_cameras or 
-                    cand_lower in self.known_aliases or 
-                    "cam" in cand_lower or 
-                    "gate" in cand_lower or 
-                    "yard" in cand_lower or 
-                    "lobby" in cand_lower or 
-                    "landscape" in cand_lower):
-                    location = cand
-                    cleaned = cleaned[:m.start()] + " " + cleaned[m.end():]
-                    break
+
+                # Check if matches known cameras
+                matched_cam = None
+                for c in self.known_cameras:
+                    if cand_lower == c or cand_lower == c.replace("cam_", ""):
+                        matched_cam = c
+                        break
+
+                # Check if matches known aliases
+                matched_alias = None
+                for a in self.known_aliases:
+                    if cand_lower == a:
+                        matched_alias = a
+                        break
+
+                location = cand
+                cleaned = cleaned[:m.start()] + " " + cleaned[m.end():]
+
+                if matched_cam:
+                    location_status = "RESOLVED"
+                    resolved_camera = matched_cam
+                elif matched_alias:
+                    location_status = "RESOLVED"
+                    resolved_camera = self.alias_map.get(matched_alias, matched_alias)
+                else:
+                    location_status = "UNRESOLVED"
+                    resolved_camera = None
+                break
 
         # 3. Clean remaining text to form visual object prompt
         for pat in FILLER_PREFIXES:
@@ -101,5 +128,7 @@ class QueryParser:
             location=location,
             t_start=t_start_iso,
             t_end=t_end_iso,
+            location_status=location_status,
+            resolved_camera=resolved_camera,
             provider="rules"
         )

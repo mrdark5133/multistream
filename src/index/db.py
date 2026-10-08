@@ -118,10 +118,10 @@ def insert_track(
             """
             INSERT INTO tracks (
                 id, video, camera, track_id, label, t_start, t_end, t_best,
-                offset_start, offset_end, bbox_px, bbox_norm, snapshot, emb
+                offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb
             ) VALUES (
                 :id, :video, :camera, :track_id, :label, :t_start, :t_end, :t_best,
-                :offset_start, :offset_end, :bbox_px, :bbox_norm, :snapshot, :emb
+                :offset_start, :offset_end, :offset_best, :bbox_px, :bbox_norm, :snapshot, :emb
             ) ON CONFLICT(id) DO UPDATE SET
                 label=excluded.label,
                 t_start=excluded.t_start,
@@ -129,6 +129,7 @@ def insert_track(
                 t_best=excluded.t_best,
                 offset_start=excluded.offset_start,
                 offset_end=excluded.offset_end,
+                offset_best=excluded.offset_best,
                 bbox_px=excluded.bbox_px,
                 bbox_norm=excluded.bbox_norm,
                 snapshot=excluded.snapshot,
@@ -147,10 +148,10 @@ def insert_tracks_batch(
             """
             INSERT INTO tracks (
                 id, video, camera, track_id, label, t_start, t_end, t_best,
-                offset_start, offset_end, bbox_px, bbox_norm, snapshot, emb
+                offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb
             ) VALUES (
                 :id, :video, :camera, :track_id, :label, :t_start, :t_end, :t_best,
-                :offset_start, :offset_end, :bbox_px, :bbox_norm, :snapshot, :emb
+                :offset_start, :offset_end, :offset_best, :bbox_px, :bbox_norm, :snapshot, :emb
             ) ON CONFLICT(id) DO UPDATE SET
                 label=excluded.label,
                 t_start=excluded.t_start,
@@ -158,6 +159,7 @@ def insert_tracks_batch(
                 t_best=excluded.t_best,
                 offset_start=excluded.offset_start,
                 offset_end=excluded.offset_end,
+                offset_best=excluded.offset_best,
                 bbox_px=excluded.bbox_px,
                 bbox_norm=excluded.bbox_norm,
                 snapshot=excluded.snapshot,

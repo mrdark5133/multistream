@@ -80,7 +80,7 @@ class SearchEngine:
         query_emb = self.embedder.embed_text([parsed.object_prompt])[0]
         
         # 2. Query tracks table
-        track_sql = "SELECT id, video, camera, track_id, label, t_start, t_end, t_best, offset_start, offset_end, bbox_px, bbox_norm, snapshot, emb FROM tracks WHERE 1=1"
+        track_sql = "SELECT id, video, camera, track_id, label, t_start, t_end, t_best, offset_start, offset_end, offset_best, bbox_px, bbox_norm, snapshot, emb FROM tracks WHERE 1=1"
         params: List[Any] = []
 
         if parsed.location:
@@ -107,7 +107,7 @@ class SearchEngine:
                     result_type="track",
                     camera=row["camera"],
                     timestamp=row["t_best"],
-                    offset_seconds=float(row["offset_start"]),
+                    offset_seconds=float(row["offset_best"]),
                     score=round(score, 4),
                     label=row["label"],
                     video_path=row["video"],

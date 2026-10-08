@@ -167,6 +167,7 @@ class IngestPipeline:
                 "t_best": t.t_best,
                 "offset_start": t.offset_start,
                 "offset_end": t.offset_end,
+                "offset_best": t.offset_best,
                 "bbox_px": json.dumps(t.bbox_px),
                 "bbox_norm": json.dumps(t.bbox_norm),
                 "snapshot": snap_rel_path.replace("\\", "/"),

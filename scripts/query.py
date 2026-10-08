@@ -71,6 +71,8 @@ def main():
             "parsed": {
                 "object_prompt": parsed.object_prompt,
                 "location": parsed.location,
+                "location_status": parsed.location_status,
+                "resolved_camera": parsed.resolved_camera,
                 "t_start": parsed.t_start,
                 "t_end": parsed.t_end,
                 "provider": parsed.provider
