@@ -1,6 +1,6 @@
 # Phase 0 Report: Environment, Docs, Model Feasibility
 Status: PASSED WITH CAVEATS
-Date/time: 2026-10-08T16:30:00+05:30
+Date/time: 2026-10-08T17:15:00+05:30
 Parent commit: 45d13cf8fa6348a79dc2da6e47e5e59c1bd9bdf3
 
 ## 1. Summary
@@ -25,6 +25,7 @@ Based on empirical headroom, `google/siglip-base-patch16-224` is chosen as the d
 - Profiled co-loading of YOLO-World + SigLIP-Base and YOLO-World + SigLIP-SO400M on an upright frame.
 - Amended [DECISIONS.md](file:///c:/projects/MULTIStream/DECISIONS.md) DECISION-003 with windows-closed data, WDDM spill-to-host behavior, and passing/failing state against the 3.4 GB rule.
 - Added video rotation normalization to Phase 1 in [TASKS.md](file:///c:/projects/MULTIStream/TASKS.md).
+- Added two new landscape CCTV clips (`test_landscape.mp4`, `test_landscape2.mp4`) as "downloaded online footage, start time UNKNOWN, not for final evaluation".
 
 ## 3. Environment actually used
 - **OS**: `Microsoft Windows [Version 10.0.26200.9457]` (verified via `cmd.exe /c ver`)
@@ -179,6 +180,46 @@ foreach ($f in @("footage/test_video01.mp4", "footage/test_video02.mp4", "footag
         }
     ]
 }
+=== footage/test_landscape.mp4 (downloaded online footage, start time UNKNOWN, not for final evaluation) ===
+{
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+        {
+            "codec_name": "h264",
+            "width": 2560,
+            "height": 1440,
+            "r_frame_rate": "30000/1001",
+            "duration": "15.081733",
+            "tags": {
+                "creation_time": "2022-06-21T18:02:49.000000Z",
+                "language": "und",
+                "handler_name": "L-SMASH Video Handler",
+                "encoder": "AVC Coding"
+            }
+        }
+    ]
+}
+=== footage/test_landscape2.mp4 (downloaded online footage, start time UNKNOWN, not for final evaluation) ===
+{
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+        {
+            "codec_name": "h264",
+            "width": 3840,
+            "height": 2160,
+            "r_frame_rate": "30000/1001",
+            "duration": "28.995000",
+            "tags": {
+                "creation_time": "2022-08-17T13:52:26.000000Z",
+                "language": "und",
+                "handler_name": "Vimeo Artax Video Handler",
+                "encoder": "AVC Coding"
+            }
+        }
+    ]
+}
 ```
 
 ```powershell
@@ -190,8 +231,10 @@ OpenCV version: 5.0.0
 Decoded footage/test_video01.mp4: frame.shape (H, W)=(850, 478) | ffprobe (width, height)=(478, 850), auto_rotate_prop=1.0, saved=footage\orientation_check\frame_test_video01.jpg
 Decoded footage/test_video02.mp4: frame.shape (H, W)=(850, 478) | ffprobe (width, height)=(478, 850), auto_rotate_prop=1.0, saved=footage\orientation_check\frame_test_video02.jpg
 Decoded footage/test_video03.mp4: frame.shape (H, W)=(850, 478) | ffprobe (width, height)=(478, 850), auto_rotate_prop=1.0, saved=footage\orientation_check\frame_test_video03.jpg
+Decoded footage/test_landscape.mp4: frame.shape (H, W)=(1440, 2560) | ffprobe (width, height)=(2560, 1440), auto_rotate_prop=1.0, saved=footage\orientation_check\frame_test_landscape.jpg
+Decoded footage/test_landscape2.mp4: frame.shape (H, W)=(2160, 3840) | ffprobe (width, height)=(3840, 2160), auto_rotate_prop=1.0, saved=footage\orientation_check\frame_test_landscape2.jpg
 ```
-*(Analysis: All three valid video clips contain no stream_side_data rotation and no stream_tags rotate metadata (rotation = 0°). Decoded using OpenCV 5.0.0 (`cv2.VideoCapture`) with `CAP_PROP_ORIENTATION_AUTO = 1.0`. Extracted frames were verified upright and saved to `footage/orientation_check/frame_test_video01.jpg`, `frame_test_video02.jpg`, `frame_test_video03.jpg`.)*
+*(Analysis: All video clips contain no stream_side_data rotation and no stream_tags rotate metadata (rotation = 0°). Decoded using OpenCV 5.0.0 (`cv2.VideoCapture`) with `CAP_PROP_ORIENTATION_AUTO = 1.0`. Extracted frames were verified upright and saved to `footage/orientation_check/`. The two new clips `test_landscape.mp4` and `test_landscape2.mp4` are downloaded online CCTV footage, start time UNKNOWN, not for final evaluation.)*
 
 ### Command 4: Condition (b) Measurement: "app windows closed, background processes still running" (`scripts/measure_condition_b.py`)
 ```powershell
@@ -362,7 +405,7 @@ Loading weights: 100%|##########| 408/408 [00:00<00:00, 634.64it/s]
 --- 4. Retrieval-Style Test (Precision@k, Recall@k, Chance Level, ROC-AUC) ---
   [Prompt Disclosure & Run-to-Run Variance Analysis]:
   - Earlier Run Prompts: The earlier run reported Person AUC 0.8152 / Hat AUC 0.9683 using bare prompts ("a person" and "a hat").
-  - Current Bare Evaluation: Yields Person AUC 0.8177 / Hat AUC 0.9664 using the exact same bare prompts. The slight numerical difference (~0.002) is attributable to float tie-breaking and rank interpolation on FP16 cosine similarity arrays.
+  - Current Bare Evaluation: Yields Person AUC 0.8177 / Hat AUC 0.9664 using the exact same bare prompts. The cause of the slight numerical difference between the earlier reported AUC (0.8152 person / 0.9683 hat) and this run (0.8177 person / 0.9664 hat) is unknown.
   - Two Consecutive Test Executions (Run-to-Run Variance):
     === RETRIEVAL RUN 1 ===
       person (bare)      | Query: 'a person'              | AUC: 0.8177 | P@1: 100.0% | P@5: 80.0%
@@ -462,6 +505,8 @@ e98113d | harivarman-007 <harivarman124@gmail.com> | phase0: record empirical mo
 | Video duration (`test_video01.mp4`) | Command 3 (`ffprobe`) | **4.266667 s** (478x850, 30.00 fps, upright) |
 | Video duration (`test_video02.mp4`) | Command 3 (`ffprobe`) | **9.133333 s** (478x850, 30.00 fps, upright) |
 | Video duration (`test_video03.mp4`) | Command 3 (`ffprobe`) | **16.165000 s** (478x850, 30.00 fps, upright) |
+| Video duration (`test_landscape.mp4`) | Command 3 (`ffprobe`) | **15.081733 s** (2560x1440, 29.97 fps, landscape, downloaded online footage, start time UNKNOWN, not for final evaluation) |
+| Video duration (`test_landscape2.mp4`) | Command 3 (`ffprobe`) | **28.995000 s** (3840x2160, 29.97 fps, landscape, downloaded online footage, start time UNKNOWN, not for final evaluation) |
 | Standalone YOLO-World Latency (20 runs, upright frame) | Command 5 | **22.79 ms** median (mean: 22.82 ms, min: 20.62 ms, max: 27.15 ms) |
 | Orientation Ablation Impact (Upright vs 180° Inverted) | Command 5 | **84.6% drop in detections** (13 upright vs 2 inverted) |
 | Co-load SigLIP-Base on Upright Frame (Windows closed) | Command 5 (`nvidia-smi`) | **1670.0 MiB used** / 2223.0 MiB free (Peak Torch: 1086.1 MB) |
@@ -538,6 +583,7 @@ The architecture rule requires any production model to operate within the ~3.4 G
 - **Automated YOLO-World Labels**: Labels assigned to crops are automated detections from `vocab.yaml`, not human ground-truth. Several small crops are mislabeled (e.g., ID02 and ID14 in `test_video01.mp4` are labeled `semi-truck` and `suv` but actually contain a pedestrian).
 - **Repeated Detections & Sample Support**: Hat retrieval rests on ~1 physical object (8 repeated crops of one motorcycle helmet) and person on ~4-5 pedestrians across sampled timestamps (n=75 is not 75 independent samples; ~10 unique objects total). Therefore, the composite-vs-bare result is suggestive only until Phase 1 builds a larger labelled set. In retrieval, Top-1 Precision = 100% corresponds to a single retrieved item ($k=1$).
 - **Unreliability of `torch.cuda.mem_get_info`**: `mem_get_info` returned an identical 3250.20 MB across three runs with different background loads, reads a constant ~310 MiB below `nvidia-smi` free under load, and showed a coincidental +27.2 MB offset at idle. All VRAM budgeting, allocation guards, and pre-flight checks will strictly use NVML / `nvidia-smi`.
+- **Downloaded Landscape Footage**: Two new landscape CCTV clips (`footage/test_landscape.mp4` [2560x1440, 15.08s] and `footage/test_landscape2.mp4` [3840x2160, 29.00s]) are downloaded online footage, start time UNKNOWN, not for final evaluation.
 
 ## 10. What was NOT verified
 - LLM API calls (`ANTHROPIC_API_KEY` and `GEMINI_API_KEY` marked NOT RUN).

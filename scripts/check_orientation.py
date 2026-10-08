@@ -8,7 +8,9 @@ out_dir.mkdir(parents=True, exist_ok=True)
 clips = [
     "footage/test_video01.mp4",
     "footage/test_video02.mp4",
-    "footage/test_video03.mp4"
+    "footage/test_video03.mp4",
+    "footage/test_landscape.mp4",
+    "footage/test_landscape2.mp4"
 ]
 
 for clip_path in clips:
