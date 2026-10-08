@@ -16,6 +16,41 @@ class ParsedQuery:
     location_status: str = "NONE" # "RESOLVED" | "UNRESOLVED" | "NONE"
     resolved_camera: Optional[str] = None
     provider: str = "rules"
+    target_labels: Optional[List[str]] = None
+
+
+# Synonyms mapping query words to detected YOLO-World track labels
+LABEL_SYNONYMS: Dict[str, List[str]] = {
+    "car": ["car", "suv", "van"],
+    "cars": ["car", "suv", "van"],
+    "automobile": ["car", "suv", "van"],
+    "automobiles": ["car", "suv", "van"],
+    "bus": ["bus"],
+    "buses": ["bus"],
+    "truck": ["truck", "semi-truck"],
+    "trucks": ["truck", "semi-truck"],
+    "semi": ["semi-truck", "truck"],
+    "suv": ["suv", "car"],
+    "suvs": ["suv", "car"],
+    "van": ["van", "car"],
+    "vans": ["van", "car"],
+    "vehicle": ["car", "bus", "truck", "suv", "van", "semi-truck", "motorcycle"],
+    "vehicles": ["car", "bus", "truck", "suv", "van", "semi-truck", "motorcycle"],
+    "motorcycle": ["motorcycle"],
+    "motorcycles": ["motorcycle"],
+    "bike": ["bicycle", "motorcycle"],
+    "bicycle": ["bicycle"],
+    "person": ["person", "pedestrian"],
+    "people": ["person", "pedestrian"],
+    "pedestrian": ["pedestrian", "person"],
+    "pedestrians": ["pedestrian", "person"],
+    "man": ["person"],
+    "woman": ["person"],
+    "child": ["person"],
+    "cat": ["cat"],
+    "dog": ["dog"],
+    "umbrella": ["umbrella"],
+}
 
 
 # Location preposition patterns
@@ -122,6 +157,14 @@ class QueryParser:
         t_start_iso = start_dt.isoformat() if start_dt else None
         t_end_iso = end_dt.isoformat() if end_dt else None
 
+        # 4. Extract target labels for category filtering
+        target_labels_set = set()
+        query_words = set(re.findall(r"\b[a-zA-Z]+\b", query.lower()))
+        for word in query_words:
+            if word in LABEL_SYNONYMS:
+                target_labels_set.update(LABEL_SYNONYMS[word])
+        target_labels = sorted(list(target_labels_set)) if target_labels_set else None
+
         return ParsedQuery(
             raw_query=query,
             object_prompt=obj_prompt,
@@ -130,5 +173,6 @@ class QueryParser:
             t_end=t_end_iso,
             location_status=location_status,
             resolved_camera=resolved_camera,
-            provider="rules"
+            provider="rules",
+            target_labels=target_labels
         )

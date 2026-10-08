@@ -177,6 +177,12 @@ class SearchEngine:
         candidates: List[SearchResult] = []
 
         for row in cur_tracks:
+            # Enforce target category filtering (e.g. asking for car/bus ignores person)
+            if parsed.target_labels:
+                track_label = row["label"].lower()
+                if track_label not in parsed.target_labels:
+                    continue
+
             bbox_norm = json.loads(row["bbox_norm"]) if row["bbox_norm"] else None
             # Apply spatial polygon filter if defined for this alias
             if target_polygon and bbox_norm and len(bbox_norm) == 4:
@@ -203,8 +209,8 @@ class SearchEngine:
                     bbox_norm=bbox_norm
                 ))
 
-        # 3. Query whole frames table (fallback / scene context, skipped if polygon filter is active)
-        if not target_polygon:
+        # 3. Query whole frames table (fallback / scene context, skipped if polygon filter is active or target tracks found)
+        if not target_polygon and (not parsed.target_labels or len(candidates) == 0):
             frame_sql = "SELECT id, video, camera, t_abs, offset_s, snapshot, emb FROM frames WHERE 1=1"
             frame_params: List[Any] = []
 
