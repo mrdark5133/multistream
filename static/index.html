@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MULTIStream - Natural Language Video Retrieval</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">MS</div>
+        <div>
+          <h1 class="logo-title">MULTIStream</h1>
+          <p class="logo-sub">Multi-Camera Natural Language CCTV Retrieval</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <div class="status-badge" id="health-badge">
+          <span class="status-dot"></span>
+          <span id="health-text">Connecting...</span>
+        </div>
+        <div class="vram-badge" id="vram-text">GPU VRAM: -- / -- MB</div>
+        <button class="nav-btn" id="btn-open-poly">Polygon Drawer</button>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-content">
+      <!-- Chat & Results Section -->
+      <section class="chat-section">
+        <div class="chat-messages" id="chat-messages">
+          <!-- Welcome message -->
+          <div class="message assistant-msg">
+            <div class="msg-avatar">AI</div>
+            <div class="msg-body">
+              <p>Welcome to <strong>MULTIStream</strong>. Query your recorded surveillance footage in natural language without cloud API dependencies.</p>
+              <div class="suggestion-pills">
+                <button class="pill-btn" onclick="setQuery('a red car near cam_landscape')">"a red car near cam_landscape"</button>
+                <button class="pill-btn" onclick="setQuery('a person at the main gate')">"a person at the main gate"</button>
+                <button class="pill-btn" onclick="setQuery('a vehicle in the last hour')">"a vehicle in the last hour"</button>
+                <button class="pill-btn" onclick="setQuery('a person walking')">"a person walking"</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Input Bar -->
+        <div class="input-container">
+          <form id="search-form" class="search-form">
+            <input 
+              type="text" 
+              id="query-input" 
+              class="query-input" 
+              placeholder="Search footage (e.g. 'a red car near cam_landscape', 'a person between 2 and 3 PM')..."
+              autocomplete="off"
+              required
+            >
+            <button type="submit" id="search-btn" class="search-btn">
+              <span>Search</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Polygon Annotation Modal / Panel -->
+      <aside class="poly-modal hidden" id="poly-modal">
+        <div class="poly-card">
+          <div class="poly-header">
+            <h3>Define Spatial Region (Polygon)</h3>
+            <button class="close-btn" id="btn-close-poly">&times;</button>
+          </div>
+          <p class="poly-instruction">
+            Select a camera and click 3+ points on the snapshot canvas to define an alias boundary.
+          </p>
+          <div class="poly-controls">
+            <select id="poly-camera-select" class="custom-select">
+              <option value="">Loading cameras...</option>
+            </select>
+            <input type="text" id="poly-alias-name" class="poly-input" placeholder="Alias name (e.g. 'north parking lot')">
+            <button id="btn-reset-poly" class="btn-secondary">Clear Points</button>
+            <button id="btn-save-poly" class="btn-primary">Save Alias</button>
+          </div>
+          <div class="canvas-wrapper">
+            <canvas id="poly-canvas" width="640" height="360"></canvas>
+            <div id="canvas-overlay-text" class="canvas-overlay">Click points to outline region</div>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

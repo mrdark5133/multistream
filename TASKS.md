@@ -64,11 +64,11 @@ Rules: Check a box ONLY when the acceptance test for that task has passed. Inclu
 ---
 
 ## Phase 4: API and Chat UI
-- [ ] 4.1 Implement FastAPI endpoints (`/ask`, `/alias`, `/cameras`, `/snapshot/{id}`, `/clip/{id}`, `/upload`, `/health`) with in-memory multi-turn session history
-- [ ] 4.2 Minimal static chat UI with result cards, video players, and polygon annotation canvas
-- [ ] 4.3 Automated terminal-based API testing (`curl` / `httpx`) without browser automation
-- [ ] 4.4 Formulate MANUAL CHECK protocol for human browser inspection
-- [ ] Phase 4 Report generated and approved (`REPORTS/PHASE_4_REPORT.md`)
+- [x] 4.1 Implement FastAPI endpoints (`/ask`, `/alias`, `/cameras`, `/snapshot/{id}`, `/clip/{id}`, `/upload`, `/health`) with in-memory multi-turn session history
+- [x] 4.2 Minimal static chat UI with result cards, video players, and polygon annotation canvas
+- [x] 4.3 Automated terminal-based API testing (`curl` / `httpx`) without browser automation
+- [x] 4.4 Formulate MANUAL CHECK protocol for human browser inspection
+- [x] Phase 4 Report generated and approved (`REPORTS/PHASE_4_REPORT.md`)
 
 ---
 
