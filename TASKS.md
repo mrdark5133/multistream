@@ -19,20 +19,20 @@ Rules: Check a box ONLY when the acceptance test for that task has passed. Inclu
 ---
 
 ## Phase 1: Ingest Pipeline
-- [ ] 1.1 Implement SQLite schema and `config` table in WAL mode
-- [ ] 1.2 Implement video start time resolution fallback chain with unit tests
-- [ ] 1.3 Detection + ByteTrack tracking with configurable stride (default: 5)
-- [ ] 1.4 Best-frame selection per track and annotated snapshot creation
-- [ ] 1.5 Crop embedding extraction with automatic OOM batch backoff
-- [ ] 1.6 Whole-frame embedding extraction (~1 frame every 2s) into `frames` table
-- [ ] 1.7 Incremental indexing with duplicate prevention
-- [ ] 1.8 CLI tool `scripts/ingest.py` logging duration, tracks, frames, wall time, VRAM
-- [ ] 1.9 Multi-video tracker isolation test preventing track state leakage
-- [ ] 1.10 Video rotation normalization: read rotation metadata per video (tags/side data), apply rotation before detection/embedding, and store applied rotation in `videos` record
-- [ ] 1.11 Benchmark image tower only (3 warm-up + 20 timed runs, batch sizes 1/8/16, both embedders: SigLIP-Base and SigLIP-SO400M) on crops extracted from upright clips (`test_video01-03.mp4`)
-- [ ] 1.12 NVML free-VRAM guard check before each model load, and execute YOLO `set_classes` on CPU or explicitly delete/free CLIP text encoder (+443 MiB) afterward
-- [ ] 1.13 High-resolution landscape CCTV input handling (evaluate imgsz=1280 vs default imgsz=640 for small-object recall on 2.5K/4K CCTV frames)
-- [ ] Phase 1 Report generated and approved (`REPORTS/PHASE_1_REPORT.md`)
+- [x] 1.1 Implement SQLite schema and `config` table in WAL mode - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.2 Implement video start time resolution fallback chain with unit tests - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.3 Detection + ByteTrack tracking with configurable stride (default: 5) - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.4 Best-frame selection per track and annotated snapshot creation - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.5 Crop embedding extraction with automatic OOM batch backoff - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.6 Whole-frame embedding extraction (~1 frame every 2s) into `frames` table - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.7 Incremental indexing with duplicate prevention - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.8 CLI tool `scripts/ingest.py` logging duration, tracks, frames, wall time, VRAM - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.9 Multi-video tracker isolation test preventing track state leakage - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.10 Video rotation normalization: read rotation metadata per video (tags/side data), apply rotation before detection/embedding, and store applied rotation in `videos` record - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.11 Benchmark image tower only (3 warm-up + 20 timed runs, batch sizes 1/8/16, both embedders: SigLIP-Base and SigLIP-SO400M) on crops extracted from upright clips (`test_video01-03.mp4`) - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.12 NVML free-VRAM guard check before each model load, and execute YOLO `set_classes` on CPU or explicitly delete/free CLIP text encoder (+443 MiB) afterward - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] 1.13 High-resolution landscape CCTV input handling (evaluate imgsz=1280 vs default imgsz=640 for small-object recall on 2.5K/4K CCTV frames) - [PHASE_1_REPORT.md Section 2](file:///c:/projects/MULTIStream/REPORTS/PHASE_1_REPORT.md)
+- [x] Phase 1 Report generated and approved (`REPORTS/PHASE_1_REPORT.md`)
 
 ---
 
