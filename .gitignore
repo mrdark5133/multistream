@@ -37,6 +37,8 @@ models/
 index_*/
 snapshots/
 clips/
+cache/
+weights/
 
 # Evaluation outputs & scratch
 eval/results/

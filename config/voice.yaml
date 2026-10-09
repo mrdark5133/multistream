@@ -1,0 +1,17 @@
+asr:
+  model_name: "base.en"
+  device: "cpu"
+  compute_type: "int8"
+  beam_size: 1
+  initial_prompt: "person, car, bus, truck, motorcycle, bicycle, laptop, computer monitor, juice box, soda can, bluetooth speaker, phone charger, power bank, extension board, water bottle, bottle, umbrella, backpack, cell phone, cam_landscape, cam_landscape2, test_video01, test_video02, test_video03, mobile_cam01, mobile_cam02, mobile_cam03"
+
+tts:
+  model_path: "weights/piper/en/en_US/lessac/low/en_US-lessac-low.onnx"
+  config_path: "weights/piper/en/en_US/lessac/low/en_US-lessac-low.onnx.json"
+  use_cuda: false
+  cache_dir: "cache/audio"
+
+limits:
+  max_audio_seconds: 30.0
+  min_audio_seconds: 0.3
+  sample_rate: 16000
