@@ -52,9 +52,16 @@ let previousIndexingState = 'idle';
 
 let audioContext = null;
 let mediaStream = null;
+let mediaRecorder = null;
 let scriptProcessor = null;
-let audioChunks = [];
+let audioSourceNode = null;
+let recordedChunks = [];
+let fallbackAudioChunks = [];
 let isRecording = false;
+let isInitializing = false;
+let pendingStop = false;
+let isToggleMode = false;
+let pressStartTime = 0;
 let recordingStartTime = 0;
 
 // --- Initialization ---
@@ -71,37 +78,62 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupEventListeners() {
   searchForm.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (isRecording) {
+      stopVoiceRecording(false);
+    }
     const q = queryInput.value.trim();
     if (q) {
       handleSearch(q);
     }
   });
 
-  // Push-to-talk microphone event listeners
+  // Dual-mode Microphone Events (Click-to-Toggle and Push-to-Talk)
   if (btnMic) {
-    btnMic.addEventListener('mousedown', (e) => {
+    const handlePressStart = (e) => {
       e.preventDefault();
+      if (isRecording && isToggleMode) {
+        // Second click when in toggle mode stops and submits
+        stopVoiceRecording(true);
+        return;
+      }
+      if (isRecording || isInitializing) return;
+      pressStartTime = Date.now();
+      isToggleMode = false;
       startVoiceRecording();
-    });
-    btnMic.addEventListener('mouseup', (e) => {
+    };
+
+    const handlePressEnd = (e) => {
       e.preventDefault();
-      stopVoiceRecording(true);
-    });
+      if (!isRecording && !isInitializing) return;
+      const pressDuration = Date.now() - pressStartTime;
+      if (pressDuration < 350) {
+        // Short click: remain in toggle recording mode
+        isToggleMode = true;
+        if (btnMic) {
+          btnMic.classList.add('recording');
+          if (micText) micText.textContent = 'Stop';
+        }
+        if (voiceStatusBar) {
+          voiceStatusBar.style.display = 'flex';
+          if (voiceStatusText) voiceStatusText.textContent = 'Recording audio — click Stop when done';
+        }
+      } else {
+        // Long press: push-to-talk release
+        isToggleMode = false;
+        stopVoiceRecording(true);
+      }
+    };
+
+    btnMic.addEventListener('mousedown', handlePressStart);
+    btnMic.addEventListener('mouseup', handlePressEnd);
     btnMic.addEventListener('mouseleave', () => {
-      if (isRecording) {
+      if (isRecording && !isToggleMode) {
         stopVoiceRecording(true);
       }
     });
 
-    // Mobile / touch support
-    btnMic.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      startVoiceRecording();
-    });
-    btnMic.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      stopVoiceRecording(true);
-    });
+    btnMic.addEventListener('touchstart', handlePressStart, { passive: false });
+    btnMic.addEventListener('touchend', handlePressEnd, { passive: false });
   }
 
   // Mobile modal events
@@ -258,7 +290,7 @@ async function initVoiceAudio() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     throw new Error('Microphone audio capture is not supported in this browser.');
   }
-  if (!mediaStream) {
+  if (!mediaStream || !mediaStream.active) {
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         channelCount: 1,
@@ -268,92 +300,159 @@ async function initVoiceAudio() {
       }
     });
   }
-  if (!audioContext || audioContext.state === 'closed') {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    audioContext = new AudioCtx();
-  }
-  if (audioContext.state === 'suspended') {
-    await audioContext.resume();
-  }
 }
 
 async function startVoiceRecording() {
+  if (isRecording || isInitializing) return;
+  isInitializing = true;
+  pendingStop = false;
+
+  if (btnMic) {
+    btnMic.classList.add('recording');
+    if (micText) micText.textContent = isToggleMode ? 'Stop' : 'Listening';
+  }
+  if (voiceStatusBar) {
+    voiceStatusBar.style.display = 'flex';
+    if (voiceStatusText) {
+      voiceStatusText.textContent = isToggleMode
+        ? 'Recording audio — click Stop when done'
+        : 'Listening... Speak query';
+    }
+  }
+
   try {
     await initVoiceAudio();
-    audioChunks = [];
-    isRecording = true;
     recordingStartTime = Date.now();
+    isRecording = true;
+    isInitializing = false;
 
-    const source = audioContext.createMediaStreamSource(mediaStream);
-    scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-    scriptProcessor.onaudioprocess = (e) => {
-      if (!isRecording) return;
-      const channelData = e.inputBuffer.getChannelData(0);
-      audioChunks.push(new Float32Array(channelData));
-    };
+    if (window.MediaRecorder && mediaStream) {
+      let mimeType = '';
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+        mimeType = 'audio/ogg;codecs=opus';
+      }
 
-    source.connect(scriptProcessor);
-    scriptProcessor.connect(audioContext.destination);
-
-    if (btnMic) {
-      btnMic.classList.add('recording');
-      if (micText) micText.textContent = 'Recording';
+      recordedChunks = [];
+      mediaRecorder = mimeType ? new MediaRecorder(mediaStream, { mimeType }) : new MediaRecorder(mediaStream);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          recordedChunks.push(e.data);
+        }
+      };
+      mediaRecorder.start(100);
+    } else {
+      // AudioContext fallback
+      fallbackAudioChunks = [];
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new AudioCtx();
+      }
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      audioSourceNode = audioContext.createMediaStreamSource(mediaStream);
+      scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+      scriptProcessor.onaudioprocess = (e) => {
+        if (!isRecording) return;
+        const channelData = e.inputBuffer.getChannelData(0);
+        fallbackAudioChunks.push(new Float32Array(channelData));
+      };
+      audioSourceNode.connect(scriptProcessor);
+      const zeroGain = audioContext.createGain();
+      zeroGain.gain.value = 0;
+      scriptProcessor.connect(zeroGain);
+      zeroGain.connect(audioContext.destination);
     }
-    if (voiceStatusBar) {
-      voiceStatusBar.style.display = 'flex';
-      if (voiceStatusText) voiceStatusText.textContent = 'Audio recording active: speak query (release to submit)';
+
+    if (pendingStop) {
+      pendingStop = false;
+      stopVoiceRecording(true);
     }
   } catch (err) {
+    isInitializing = false;
+    isRecording = false;
+    isToggleMode = false;
+    if (btnMic) {
+      btnMic.classList.remove('recording');
+      if (micText) micText.textContent = 'Talk';
+    }
+    if (voiceStatusBar) voiceStatusBar.style.display = 'none';
     console.error('Error starting audio recording:', err);
-    alert('Microphone access failed: ' + err.message);
-    stopVoiceRecording(false);
+    appendAssistantMessage(`Microphone access failed: ${escapeHtml(err.message)}`);
   }
 }
 
 async function stopVoiceRecording(shouldSend = true) {
+  if (isInitializing) {
+    pendingStop = true;
+    return;
+  }
   if (!isRecording) return;
+
   isRecording = false;
+  isToggleMode = false;
+  const duration = (Date.now() - recordingStartTime) / 1000;
 
   if (btnMic) {
     btnMic.classList.remove('recording');
     if (micText) micText.textContent = 'Talk';
   }
 
-  if (scriptProcessor) {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    return new Promise((resolve) => {
+      mediaRecorder.onstop = async () => {
+        if (!shouldSend || duration < 0.25 || recordedChunks.length === 0) {
+          if (voiceStatusBar) voiceStatusBar.style.display = 'none';
+          resolve();
+          return;
+        }
+        if (voiceStatusText) {
+          voiceStatusText.textContent = 'Processing: Whisper ASR & retrieval...';
+        }
+        const mime = mediaRecorder.mimeType || 'audio/webm';
+        const blob = new Blob(recordedChunks, { type: mime });
+        const ext = mime.includes('ogg') ? 'voice.ogg' : 'voice.webm';
+        await sendVoiceQuery(blob, ext);
+        resolve();
+      };
+      try {
+        mediaRecorder.stop();
+      } catch (e) {
+        console.warn('Error stopping mediaRecorder:', e);
+        resolve();
+      }
+    });
+  } else if (scriptProcessor) {
     try {
       scriptProcessor.disconnect();
-    } catch (e) {
-      console.warn('ScriptProcessor disconnect warning:', e);
-    }
+    } catch (e) {}
     scriptProcessor = null;
+
+    if (!shouldSend || duration < 0.25 || fallbackAudioChunks.length === 0) {
+      if (voiceStatusBar) voiceStatusBar.style.display = 'none';
+      return;
+    }
+    if (voiceStatusText) {
+      voiceStatusText.textContent = 'Processing: Whisper ASR & retrieval...';
+    }
+
+    let totalLength = 0;
+    for (const chunk of fallbackAudioChunks) totalLength += chunk.length;
+    const mergedSamples = new Float32Array(totalLength);
+    let offset = 0;
+    for (const chunk of fallbackAudioChunks) {
+      mergedSamples.set(chunk, offset);
+      offset += chunk.length;
+    }
+    const sampleRate = audioContext ? audioContext.sampleRate : 16000;
+    const downsampled = downsampleBuffer(mergedSamples, sampleRate, 16000);
+    const wavBlob = encodeWAV(downsampled, 16000);
+    await sendVoiceQuery(wavBlob, 'voice.wav');
   }
-
-  const duration = (Date.now() - recordingStartTime) / 1000;
-  if (!shouldSend || duration < 0.3 || audioChunks.length === 0) {
-    if (voiceStatusBar) voiceStatusBar.style.display = 'none';
-    return;
-  }
-
-  if (voiceStatusText) {
-    voiceStatusText.textContent = 'Processing: Whisper ASR & retrieval...';
-  }
-
-  // Concatenate Float32Array chunks
-  let totalLength = 0;
-  for (const chunk of audioChunks) totalLength += chunk.length;
-  const mergedSamples = new Float32Array(totalLength);
-  let offset = 0;
-  for (const chunk of audioChunks) {
-    mergedSamples.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  // Downsample to 16 kHz
-  const sampleRate = audioContext.sampleRate;
-  const downsampled = downsampleBuffer(mergedSamples, sampleRate, 16000);
-  const wavBlob = encodeWAV(downsampled, 16000);
-
-  await sendVoiceQuery(wavBlob);
 }
 
 function downsampleBuffer(buffer, inputSampleRate, outputSampleRate = 16000) {
@@ -412,9 +511,9 @@ function encodeWAV(samples, sampleRate) {
   return new Blob([view], { type: 'audio/wav' });
 }
 
-async function sendVoiceQuery(wavBlob) {
+async function sendVoiceQuery(audioBlob, filename = 'voice.webm') {
   const formData = new FormData();
-  formData.append('file', wavBlob, 'voice_query.wav');
+  formData.append('file', audioBlob, filename);
 
   try {
     const res = await fetch('/voice', {

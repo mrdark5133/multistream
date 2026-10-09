@@ -248,6 +248,16 @@ def main():
     print("-" * 80)
 
     sess_id = f"test_clarify_sess_{int(time.time())}"
+    # Clean up previous test alias if present so clarification is guaranteed to trigger
+    try:
+        from src.api.app import INDEX_DB
+        import sqlite3
+        with sqlite3.connect(INDEX_DB) as conn:
+            conn.execute("DELETE FROM aliases WHERE name = 'northern gate'")
+            conn.commit()
+    except Exception:
+        pass
+
     with httpx.Client(base_url=base_url, timeout=30.0) as client:
         # Step 1: Speak query with unknown referent
         q_unknown = "find a white car at the northern gate"

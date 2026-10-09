@@ -88,7 +88,7 @@ def serve_root():
     return {"message": "MULTIStream API is active. UI not found in static/index.html"}
 
 
-from src.voice.asr import WhisperASR
+from src.voice.asr import WhisperASR, decode_audio_bytes, resample_to_16k
 from src.voice.tts import PiperTTS
 from src.voice.answers import template_answer
 from src.voice.camera_match import match_spoken_to_camera, normalize_query_cameras
@@ -236,19 +236,18 @@ async def voice_search(
             content={"detail": "Invalid or corrupt WAV audio file.", "error": "corrupt_audio"}
         )
 
-    # 2. Decode with soundfile to validate format, length, and audio energy
-    try:
-        with io.BytesIO(raw_bytes) as bio:
-            audio_data, sample_rate = sf.read(bio)
-    except Exception:
+    # 2. Decode audio (supports WAV, WebM, OGG, MP3, etc.)
+    audio_data, sample_rate = decode_audio_bytes(raw_bytes)
+    if len(audio_data) == 0:
         return JSONResponse(
             status_code=400,
             content={"detail": "Invalid or corrupt WAV audio file.", "error": "corrupt_audio"}
         )
 
-    # Flatten stereo to mono if needed
-    if len(audio_data.shape) > 1:
-        audio_data = audio_data.mean(axis=1)
+    # Resample to 16,000 Hz if needed (crucial for real Windows PC mic hardware)
+    if sample_rate != 16000:
+        audio_data = resample_to_16k(audio_data, sample_rate)
+        sample_rate = 16000
 
     duration_s = float(len(audio_data)) / float(sample_rate)
 
@@ -271,7 +270,7 @@ async def voice_search(
     # 3. Automatic Speech Recognition (faster-whisper on CPU)
     asr = get_asr()
     t0_asr = time.perf_counter()
-    transcript = asr.transcribe(raw_bytes)
+    transcript = asr.transcribe(audio_data)
     t_asr = (time.perf_counter() - t0_asr) * 1000.0
 
     if not transcript or not transcript.strip():
