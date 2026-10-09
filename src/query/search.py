@@ -1,7 +1,9 @@
+import os
 import json
 import sqlite3
 import datetime
 from pathlib import Path
+
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
@@ -194,10 +196,10 @@ class SearchEngine:
         candidates: List[SearchResult] = []
 
         for row in cur_tracks:
-            # Enforce target category filtering (e.g. asking for car/bus ignores person)
+            # Enforce target category filtering (allow generic 'object' tracks to match via SigLIP)
             if parsed.target_labels:
                 track_label = row["label"].lower()
-                if track_label not in parsed.target_labels:
+                if track_label not in parsed.target_labels and track_label != "object":
                     continue
 
             bbox_norm = json.loads(row["bbox_norm"]) if row["bbox_norm"] else None
@@ -260,20 +262,26 @@ class SearchEngine:
 
             if similarity_threshold is None or score >= similarity_threshold:
                 bbox_px = json.loads(row["bbox_px"]) if row["bbox_px"] else None
+                snap_path = row["snapshot"]
+                if snap_path and not os.path.isabs(snap_path):
+                    cand = self.db_path.parent / snap_path
+                    if cand.exists():
+                        snap_path = str(cand).replace("\\", "/")
                 candidates.append(SearchResult(
                     result_id=row["id"],
                     result_type="track",
                     camera=row["camera"],
-                    timestamp=row["t_best"],
-                    offset_seconds=float(row["offset_best"]),
+                    timestamp=row["t_best"] or "",
+                    offset_seconds=float(row["offset_best"]) if row["offset_best"] is not None else 0.0,
                     score=round(score, 4),
                     label=row["label"],
-                    video_path=row["video"],
-                    snapshot_path=row["snapshot"],
+                    video_path=row["video"] or "",
+                    snapshot_path=snap_path or "",
                     color=det_color,
                     bbox_px=bbox_px,
                     bbox_norm=bbox_norm
                 ))
+
 
         # 3. Query whole frames table (fallback / scene context, skipped if polygon filter is active or target tracks found)
         if not target_polygon and (not parsed.target_labels or len(candidates) == 0):

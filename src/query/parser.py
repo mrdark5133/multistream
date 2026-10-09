@@ -70,8 +70,31 @@ LABEL_SYNONYMS: Dict[str, List[str]] = {
     "window": ["window"],
     "clock": ["clock"],
     "fan": ["fan"],
-    "light": ["light"]
+    "light": ["light"],
+    "juice": ["juice box", "juice bottle"],
+    "juicebox": ["juice box"],
+    "juice box": ["juice box"],
+    "frooti": ["juice box"],
+    "speaker": ["bluetooth speaker", "speaker"],
+    "bluetooth": ["bluetooth speaker"],
+    "bluetooth speaker": ["bluetooth speaker"],
+    "charger": ["phone charger", "charger", "power bank"],
+    "phone charger": ["phone charger"],
+    "power adapter": ["phone charger"],
+    "can": ["soda can", "can"],
+    "soda": ["soda can"],
+    "soda can": ["soda can"],
+    "monster": ["soda can", "energy drink can"],
+    "power bank": ["power bank"],
+    "extension board": ["extension board"],
+    "extension box": ["extension board"],
+    "power strip": ["extension board"],
+    "extension strip": ["extension board"],
+    "extension": ["extension board"],
+    "water bottle": ["water bottle"]
 }
+
+
 
 
 # Location preposition patterns
