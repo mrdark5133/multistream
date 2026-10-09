@@ -1,0 +1,12 @@
+# Test Vocabulary for Desk Objects Diagnosis & Grounding-DINO Ingestion
+classes:
+  - bluetooth speaker
+  - phone charger
+  - laptop
+  - computer monitor
+  - soda can
+  - juice box
+  - juice bottle
+  - power bank
+  - extension board
+  - water bottle

@@ -122,19 +122,34 @@ def create_annotated_snapshot(
     label: str,
     track_id: int,
     conf: float,
-    max_dim: int = 640
+    max_dim: int = 640,
+    bbox_norm: Optional[List[float]] = None
 ) -> np.ndarray:
     """
     Draw bounding box and label on snapshot, then resize proportionally to max_dim.
     """
     annotated = frame.copy()
-    x1, y1, x2, y2 = bbox_px
     h, w = frame.shape[:2]
-    
+
+    if bbox_norm is not None:
+        x1 = max(0, min(w - 1, int(bbox_norm[0] * w)))
+        y1 = max(0, min(h - 1, int(bbox_norm[1] * h)))
+        x2 = max(0, min(w, int(bbox_norm[2] * w)))
+        y2 = max(0, min(h, int(bbox_norm[3] * h)))
+    else:
+        bx1, by1, bx2, by2 = bbox_px
+        if bx2 > w or by2 > h:
+            scale_x = w / 1920.0
+            scale_y = h / 1080.0
+            x1, y1, x2, y2 = int(bx1 * scale_x), int(by1 * scale_y), int(bx2 * scale_x), int(by2 * scale_y)
+        else:
+            x1, y1, x2, y2 = bx1, by1, bx2, by2
+
     # Draw box
     color = (0, 255, 0)
-    thickness = max(2, int(min(w, h) / 300))
+    thickness = max(2, int(min(w, h) / 250))
     cv2.rectangle(annotated, (x1, y1), (x2, y2), color, thickness)
+
     
     # Text label
     text = f"ID{track_id} {label} {conf:.2f}"
@@ -474,7 +489,8 @@ def process_video_tracks_phase1b(
                 voted_label,
                 st.track_id,
                 best_obs.conf,
-                max_dim=640
+                max_dim=640,
+                bbox_norm=best_obs.bbox_norm
             )
         else:
             snapshot = padded_crop
@@ -535,7 +551,8 @@ def process_video_tracks_phase1b(
                         voted_label,
                         st.track_id,
                         best_obs.conf,
-                        max_dim=640
+                        max_dim=640,
+                        bbox_norm=best_obs.bbox_norm
                     )
                 else:
                     snapshot = padded_crop

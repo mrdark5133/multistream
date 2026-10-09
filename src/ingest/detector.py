@@ -43,6 +43,10 @@ COCO_NAMES_SET = set(COCO_KEEP_CLASSES.values())
 def get_object_group(label: str) -> str:
     """Classify label into coarse group: person | vehicle | object."""
     lbl = label.lower().strip()
+    if lbl.startswith("a "):
+        lbl = lbl[2:].strip()
+    elif lbl.startswith("an "):
+        lbl = lbl[3:].strip()
     if lbl in {
         "person", "pedestrian", "cyclist", "child", "security guard",
         "delivery worker", "construction worker"
@@ -55,6 +59,7 @@ def get_object_group(label: str) -> str:
     }:
         return "vehicle"
     return "object"
+
 
 
 def box_iou(box1: np.ndarray, box2: np.ndarray) -> float:
@@ -217,3 +222,130 @@ class HybridDetector:
                     group_kept.append(d)
             kept.extend(group_kept)
         return kept
+
+
+class GroundingDinoDetector:
+    """
+    Open-vocabulary zero-shot detector using Grounding-DINO-Tiny.
+    Designed for granular desk/indoor objects and user-specified vocabularies.
+    """
+    def __init__(
+        self,
+        model_name: str = "IDEA-Research/grounding-dino-tiny",
+        vocab_path: str = "config/test_vocab.yaml",
+        device: str = "cuda:0",
+        conf_thresh: float = 0.20,
+        text_thresh: float = 0.20,
+        classes: Optional[List[str]] = None
+    ):
+        from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
+
+        self.device = device
+        self.conf_thresh = conf_thresh
+        self.text_thresh = text_thresh
+
+        if classes is not None:
+            raw_classes = classes
+        else:
+            with open(vocab_path, "r", encoding="utf-8") as f:
+                vocab_data = yaml.safe_load(f)
+            raw_classes = vocab_data.get("classes", [])
+
+        self.raw_classes = []
+        for c in raw_classes:
+            c_str = c.strip()
+            for pfx in ("a ", "an ", "the "):
+                if c_str.lower().startswith(pfx):
+                    c_str = c_str[len(pfx):].strip()
+            if c_str and c_str not in self.raw_classes:
+                self.raw_classes.append(c_str)
+
+        self.prompt_text = " . ".join(self.raw_classes) + " ."
+
+        self.processor = AutoProcessor.from_pretrained(model_name)
+        self.model = AutoModelForZeroShotObjectDetection.from_pretrained(model_name).to(device)
+        self.model.eval()
+
+    def _resolve_clean_label(self, raw_pred: str) -> str:
+        s = raw_pred.strip().lower()
+        for pfx in ("a ", "an ", "the "):
+            if s.startswith(pfx):
+                s = s[len(pfx):].strip()
+
+        # 1. Exact match against canonical classes
+        for c in self.raw_classes:
+            if s == c.lower():
+                return c
+
+        # 2. Strict semantic keyword mapping for desk objects
+        if "juice" in s:
+            return "juice bottle" if "bottle" in s else "juice box"
+        if "extension" in s or "power strip" in s:
+            return "extension board"
+        if "power bank" in s:
+            return "power bank"
+        if "charger" in s or "adapter" in s:
+            return "phone charger"
+        if "speaker" in s:
+            return "bluetooth speaker"
+        if "monitor" in s or "display" in s:
+            return "computer monitor"
+        if "laptop" in s or "notebook" in s:
+            return "laptop"
+        if "soda" in s:
+            return "soda can"
+        if "water" in s or ("bottle" in s and "juice" not in s):
+            return "water bottle"
+
+        # 3. For any other generic prediction (e.g. 'box', 'board', 'strip'),
+        # return as is or check if it exactly equals a canonical class.
+        for c in self.raw_classes:
+            if c.lower() in s:
+                return c
+
+        return s
+
+    def detect(self, frame_bgr: np.ndarray, imgsz: int = 640) -> List[Dict[str, Any]]:
+        from PIL import Image
+
+        H, W = frame_bgr.shape[:2]
+        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(frame_rgb)
+
+        inputs = self.processor(images=pil_img, text=self.prompt_text, return_tensors="pt").to(self.device)
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+
+        res = self.processor.post_process_grounded_object_detection(
+            outputs,
+            inputs.input_ids,
+            threshold=self.conf_thresh,
+            text_threshold=self.text_thresh,
+            target_sizes=[(H, W)],
+            text_labels=[self.raw_classes]
+        )[0]
+
+        detections: List[Dict[str, Any]] = []
+        for sc, lb, bx in zip(res["scores"], res["labels"], res["boxes"]):
+            matched_lbl = self._resolve_clean_label(lb)
+
+            b_np = bx.int().cpu().numpy().tolist()
+            x1 = max(0, min(W, b_np[0]))
+            y1 = max(0, min(H, b_np[1]))
+            x2 = max(0, min(W, b_np[2]))
+            y2 = max(0, min(H, b_np[3]))
+
+            if (x2 - x1) * (y2 - y1) <= 0:
+                continue
+
+            conf = float(sc.item())
+            detections.append({
+                "bbox": [x1, y1, x2, y2],
+                "conf": conf,
+                "label": matched_lbl,
+                "group": get_object_group(matched_lbl),
+                "source": "grounding_dino"
+            })
+
+        return HybridDetector._apply_class_group_nms(detections, iou_thresh=0.50)
+

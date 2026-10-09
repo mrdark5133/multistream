@@ -42,6 +42,9 @@ weights/
 
 # Evaluation outputs & scratch
 eval/results/
+eval/color_crops/
+eval/inspect_crops/
+eval/video01_crops/
 scratch/
 .idea/
 .vscode/

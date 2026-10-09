@@ -92,3 +92,28 @@ def match_color_query(query_text: str, detected_color: str) -> Optional[bool]:
         return None  # No color specified in query
 
     return detected_color in specified_colors
+
+
+CHROMATIC_SET = {"red", "blue", "green", "yellow", "orange", "brown", "purple", "pink"}
+
+
+def extract_live_chromatic_color(crop_bgr: np.ndarray, min_fraction: float = 0.5) -> Tuple[Optional[str], float]:
+    """
+    Extract color only if its fraction is above min_fraction (default 0.5)
+    and the crop is chromatic; otherwise return (None, 0.0).
+    """
+    if crop_bgr is None or crop_bgr.size == 0:
+        return None, 0.0
+    try:
+        from src.utils.lab_color import extract_lab_kmeans_colors
+        colors = extract_lab_kmeans_colors(crop_bgr, n_clusters=3, central_crop_ratio=0.8)
+        if not colors:
+            return None, 0.0
+        top = colors[0]
+        cname = top.get("color", "").lower()
+        cfrac = top.get("fraction", 0.0)
+        if cfrac > min_fraction and cname in CHROMATIC_SET:
+            return cname, round(cfrac, 3)
+    except Exception:
+        pass
+    return None, 0.0

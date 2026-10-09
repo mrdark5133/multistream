@@ -47,7 +47,8 @@ class IngestPipeline:
         device: str = "cuda:0",
         yolo_model: Optional[YOLO] = None,
         embedder: Optional[SigLIPEmbedder] = None,
-        use_hybrid_detector: bool = True
+        use_hybrid_detector: bool = True,
+        custom_detector: Optional[Any] = None
     ):
         self.db_path = Path(db_path)
         self.snapshots_dir = Path(snapshots_dir)
@@ -70,7 +71,12 @@ class IngestPipeline:
             )
 
         # Load detector
-        if self.use_hybrid_detector:
+        if custom_detector is not None:
+            self.hybrid_detector = custom_detector
+            self.use_hybrid_detector = True
+            self.yolo = None
+            self.classes = []
+        elif self.use_hybrid_detector:
             self.hybrid_detector = HybridDetector(
                 coco_weights="yolo11s.pt",
                 world_weights=yolo_weights,
@@ -81,6 +87,7 @@ class IngestPipeline:
             self.classes = []
         else:
             self.hybrid_detector = None
+
             if yolo_model is not None:
                 self.yolo = yolo_model
                 with open(vocab_path, "r", encoding="utf-8") as f:
@@ -103,8 +110,12 @@ class IngestPipeline:
         imgsz: int = 640,
         frame_sample_interval_s: float = 2.0,
         tracker_name: str = "bytetrack_tuned",
+        min_duration_s: float = 1.0,
+        min_hits: int = 4,
+        min_mean_conf: float = 0.35,
         force: bool = False
     ) -> Dict[str, Any]:
+
         """
         Ingest single video file into the index.
         Duplicate prevention: skips video if already indexed unless force=True.
@@ -156,10 +167,11 @@ class IngestPipeline:
                 imgsz=imgsz,
                 rotation=meta.rotation,
                 frame_sample_interval_s=frame_sample_interval_s,
-                min_duration_s=1.0,
-                min_hits=4,
-                min_mean_conf=0.35,
+                min_duration_s=min_duration_s,
+                min_hits=min_hits,
+                min_mean_conf=min_mean_conf,
                 embedder=self.embedder
+
             )
         else:
             tracks, sampled_frames = process_video_tracks(

@@ -1,0 +1,14 @@
+# Live Mobile Stream Vocabulary for YOLO-World (~12 Specific Classes)
+classes:
+  - bluetooth speaker
+  - juice box
+  - energy drink can
+  - soda can
+  - bottle
+  - laptop
+  - cell phone
+  - backpack
+  - person
+  - power bank
+  - extension board
+  - power adapter
