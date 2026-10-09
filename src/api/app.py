@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from src.query.search import SearchEngine
 from src.query.clips import extract_video_clip
 from src.utils.vram import get_nvml_vram_info
-from src.ingest.live_stream import LiveStreamWorker
+from src.ingest.live_stream import LiveStreamWorker, LiveStreamManager
 from src.ingest.detect_track import load_yolo_world
 
 
@@ -154,12 +154,17 @@ def execute_ask_search(
 
     parsed = resp["parsed"]
 
-    if _live_worker and _live_worker.is_running and parsed and parsed.object_prompt:
-        obj_phrase = parsed.object_prompt.strip().lower()
-        if obj_phrase.startswith("a "): obj_phrase = obj_phrase[2:]
-        elif obj_phrase.startswith("an "): obj_phrase = obj_phrase[3:]
-        if obj_phrase and obj_phrase not in _live_worker.classes:
-            _live_worker.extend_vocabulary(obj_phrase)
+    mgr = _stream_manager or _live_worker
+    if mgr and getattr(mgr, "is_running", False) and parsed and parsed.object_prompt:
+        try:
+            obj_phrase = parsed.object_prompt.strip().lower()
+            if obj_phrase.startswith("a "): obj_phrase = obj_phrase[2:]
+            elif obj_phrase.startswith("an "): obj_phrase = obj_phrase[3:]
+            if obj_phrase and hasattr(mgr, "classes") and obj_phrase not in mgr.classes:
+                mgr.extend_vocabulary(obj_phrase)
+        except Exception as e:
+            import logging
+            logging.getLogger("multistream.api").warning(f"Live vocabulary extension failed: {e}")
 
     formatted_results = []
     for r in resp["results"]:
@@ -610,45 +615,60 @@ def health():
 # --- Live Mobile Webcam / RTSP Stream Endpoints ---
 
 class StreamStartRequest(BaseModel):
-    stream_url: str = Field(..., description="IP webcam or RTSP stream URL (or path to video file for simulated demo)")
+    stream_url: Optional[str] = Field(None, description="IP webcam or RTSP stream URL (or path to video file for simulated demo)")
+    url: Optional[str] = Field(None, description="Alternative field for stream URL")
     camera: str = Field("mobile_cam01", description="Camera name identifier")
 
 
+class StreamStopRequest(BaseModel):
+    camera: Optional[str] = Field(None, description="Camera name identifier to stop")
+    auto_ingest: bool = Field(False, description="Whether to trigger offline Grounding-DINO indexing")
+
+
+_stream_manager: Optional[LiveStreamManager] = None
 _live_worker: Optional[LiveStreamWorker] = None
 _yolo_model = None
 _classes = None
+
+
+def get_stream_manager() -> LiveStreamManager:
+    global _stream_manager, _yolo_model, _classes
+    if _stream_manager is None:
+        if _yolo_model is None:
+            _yolo_model, _classes = load_yolo_world(
+                weights_path="yolov8s-worldv2.pt",
+                vocab_path="config/live_vocab.yaml",
+                device="cuda:0"
+            )
+        engine = get_search_engine()
+        _stream_manager = LiveStreamManager(
+            yolo_model=_yolo_model,
+            embedder=engine.embedder,
+            classes=_classes,
+            db_path=INDEX_DB,
+            snapshots_dir=INDEX_DB.parent / "snapshots",
+            recorded_dir=ROOT_DIR / "footage" / "recorded",
+            conf_thresh=0.15,
+            imgsz=640
+        )
+    return _stream_manager
 
 
 @app.post("/stream/start")
 def start_live_stream(req: StreamStartRequest):
     """
     Connect to a live mobile phone stream (IP Webcam) or simulated stream,
-    performing real-time detection, tracking, color tagging, and SQLite indexing.
+    managed by LiveStreamManager with per-camera isolated tracking and latest-frame drop queue.
     """
-    global _live_worker, _yolo_model, _classes
-    if _live_worker and _live_worker.is_running:
-        _live_worker.stop()
+    stream_url = req.stream_url or req.url
+    if not stream_url:
+        raise HTTPException(status_code=400, detail="Missing required field 'stream_url' or 'url'")
 
+    manager = get_stream_manager()
+    res = manager.start_stream(camera=req.camera, url=stream_url)
     engine = get_search_engine()
-    if _yolo_model is None:
-        _yolo_model, _classes = load_yolo_world(
-            weights_path="yolov8s-worldv2.pt",
-            vocab_path="config/live_vocab.yaml",
-            device="cuda:0"
-        )
-
-    _live_worker = LiveStreamWorker(
-        stream_url=req.stream_url,
-        camera_name=req.camera,
-        db_path=INDEX_DB,
-        snapshots_dir=INDEX_DB.parent / "snapshots",
-        recorded_dir=ROOT_DIR / "footage" / "recorded",
-        stride=5,
-        store_live_tracks=False
-    )
-    _live_worker.start(yolo_model=_yolo_model, embedder=engine.embedder, classes=_classes)
     engine.reload_parser()
-    return {"status": "started", "camera": req.camera, "stream_url": req.stream_url}
+    return res
 
 
 _indexing_status = {
@@ -721,17 +741,31 @@ def run_post_stream_ingest(rec_rel_path: str, camera_name: str):
 
 
 @app.post("/stream/stop")
-def stop_live_stream(background_tasks: BackgroundTasks):
-    """Stop active live mobile stream ingestion and trigger automatic Grounding-DINO indexing."""
-    global _live_worker
-    if _live_worker:
-        _live_worker.stop()
-        rec_file = _live_worker.stats.get("recorded_file")
-        cam_name = _live_worker.camera_name
-        if rec_file:
-            background_tasks.add_task(run_post_stream_ingest, rec_file, cam_name)
-        return {"status": "stopped", "stats": _live_worker.stats, "auto_ingest": "started"}
-    return {"status": "no_active_stream"}
+def stop_live_stream(
+    background_tasks: BackgroundTasks,
+    req: Optional[StreamStopRequest] = None,
+    camera: Optional[str] = None
+):
+    """Stop active stream for specified camera and optionally trigger Grounding-DINO indexing."""
+    manager = get_stream_manager()
+    target_camera = None
+    if req and req.camera:
+        target_camera = req.camera.strip()
+    elif camera:
+        target_camera = camera.strip()
+    elif manager.cameras:
+        active = [c for c, r in manager.cameras.items() if r.running]
+        target_camera = active[0] if active else list(manager.cameras.keys())[0]
+
+    if not target_camera:
+        return {"status": "no_active_stream"}
+
+    res = manager.stop_stream(target_camera)
+    rec_file = res.get("stats", {}).get("recorded_file")
+    if req and req.auto_ingest and rec_file and background_tasks:
+        background_tasks.add_task(run_post_stream_ingest, rec_file, target_camera)
+        res["auto_ingest"] = "started"
+    return res
 
 
 @app.get("/indexing/status")
@@ -754,26 +788,32 @@ def get_indexing_status():
 
 @app.get("/stream/status")
 def get_live_stream_status():
-    """Retrieve runtime status of active live stream."""
-    global _live_worker
-    if _live_worker:
-        return _live_worker.stats
-    return {"status": "idle"}
+    """Retrieve runtime status listing for all configured cameras."""
+    manager = get_stream_manager()
+    return manager.get_status()
 
 
 @app.get("/stream/feed")
-def stream_feed():
+def stream_feed(camera: Optional[str] = None):
     """
     Serve live multipart MJPEG video feed showing camera view and real-time bounding boxes.
     """
     import time
+    manager = get_stream_manager()
 
     def frame_generator():
-        while _live_worker and _live_worker.is_running:
-            if getattr(_live_worker, "latest_jpeg", None) is not None:
+        while True:
+            target = None
+            if camera and camera in manager.cameras:
+                target = manager.cameras[camera]
+            else:
+                running_cams = [r for r in manager.cameras.values() if r.running]
+                if running_cams:
+                    target = running_cams[0]
+            if target and getattr(target, "latest_jpeg", None) is not None:
                 yield (
                     b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n" + _live_worker.latest_jpeg + b"\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + target.latest_jpeg + b"\r\n"
                 )
             time.sleep(0.04)
 

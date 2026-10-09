@@ -110,49 +110,64 @@
             <button class="close-btn" id="btn-close-mobile">Close</button>
           </div>
           <p class="poly-instruction">
-            Connect live stream from phone camera over local network. Streamed frames are analyzed with object detection and spatial indexing.
+            Connect live streams from phone cameras or simulated RTSP/HTTP endpoints. Multi-stream ingest with isolated tracking per camera and frame-drop queue.
           </p>
           <div style="display: flex; flex-direction: column; gap: 14px;">
-            <div>
-              <label style="display: block; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; margin-bottom: 5px;">
-                Stream Source URL:
-              </label>
-              <input 
-                type="text" 
-                id="stream-url-input" 
-                class="poly-input" 
-                placeholder="http://192.168.1.105:8080/video" 
-                value=""
-                style="width: 100%;"
-              >
-              <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
-                <span style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Presets:</span>
-                <button type="button" id="btn-fill-ipwebcam" class="box-pill-btn">Sample IP Webcam</button>
-                <button type="button" id="btn-fill-demo" class="box-pill-btn">Demo Video File</button>
+            <div style="display: grid; grid-template-columns: 1fr 140px; gap: 8px;">
+              <div>
+                <label style="display: block; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; margin-bottom: 5px;">
+                  Stream Source URL:
+                </label>
+                <input 
+                  type="text" 
+                  id="stream-url-input" 
+                  class="poly-input" 
+                  placeholder="http://192.168.1.105:8080/video" 
+                  value=""
+                  style="width: 100%;"
+                >
+              </div>
+              <div>
+                <label style="display: block; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; margin-bottom: 5px;">
+                  Camera ID:
+                </label>
+                <input 
+                  type="text" 
+                  id="stream-camera-name" 
+                  class="poly-input" 
+                  placeholder="mobile_cam01" 
+                  value="mobile_cam01"
+                  style="width: 100%;"
+                >
               </div>
             </div>
 
-            <div>
-              <label style="display: block; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; margin-bottom: 5px;">
-                Camera Identifier:
-              </label>
-              <input 
-                type="text" 
-                id="stream-camera-name" 
-                class="poly-input" 
-                placeholder="mobile_cam01" 
-                value="mobile_cam01"
-                style="width: 100%;"
-              >
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Presets:</span>
+                <button type="button" id="btn-fill-ipwebcam" class="box-pill-btn">Sample IP Webcam</button>
+                <button type="button" id="btn-fill-demo" class="box-pill-btn">Demo Video</button>
+              </div>
+              <button id="btn-start-stream" class="btn-primary" style="height: 32px; padding: 0 14px;">
+                + Add / Start Stream
+              </button>
             </div>
 
-            <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-subtle);">
-              <button id="btn-stop-stream" class="btn-secondary" style="display: none;">
-                Stop Stream
-              </button>
-              <button id="btn-start-stream" class="btn-primary">
-                Connect Stream
-              </button>
+            <!-- Multi-Stream Active Phones List -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; font-weight: 700;">
+                  Active Phones & Streams
+                </label>
+                <span id="stream-total-active-badge" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">
+                  0 active
+                </span>
+              </div>
+              <div id="stream-cameras-list" style="border: 1px solid var(--border-strong); max-height: 180px; overflow-y: auto; background: var(--bg-alt);">
+                <div style="padding: 12px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); text-align: center;">
+                  No active streams. Add a camera above to start ingest.
+                </div>
+              </div>
             </div>
 
             <!-- Live Camera Stream Video View -->
@@ -173,13 +188,13 @@
 
             <div id="stream-status-box" style="padding: 12px; background: var(--bg-subtle); border: 1px solid var(--border-strong);">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <span style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; text-transform: uppercase;">Stream Ingest Status</span>
+                <span style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; text-transform: uppercase;">System Ingest Status</span>
                 <span id="stream-status-text" style="font-family: var(--font-mono); font-size: 10px; font-weight: 700; text-transform: uppercase;">
                   IDLE
                 </span>
               </div>
               <div id="stream-detail-text" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">
-                Ready for connection.
+                Ready for multi-camera connections.
               </div>
             </div>
           </div>

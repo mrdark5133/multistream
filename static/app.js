@@ -269,6 +269,15 @@ async function handleSearch(queryText) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: queryText, top_k: 5 })
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      let msg = errText;
+      try {
+        const parsed = JSON.parse(errText);
+        msg = parsed.detail || parsed.message || errText;
+      } catch (e) {}
+      throw new Error(`Server ${res.status}: ${msg}`);
+    }
     const data = await res.json();
     const elapsed = Math.round(performance.now() - t0);
 
@@ -948,53 +957,118 @@ function formatTimestamp(isoStr) {
   }
 }
 
-// --- Live Mobile Stream Handlers ---
+// --- Live Multi-Camera Stream Handlers ---
+let selectedPreviewCam = null;
+
+window.selectPreviewCamera = function(cameraName) {
+  selectedPreviewCam = cameraName;
+  const previewCamBadge = document.getElementById('preview-camera-badge');
+  const streamLiveImg = document.getElementById('stream-live-img');
+  const previewWrapper = document.getElementById('stream-preview-wrapper');
+  if (previewCamBadge) previewCamBadge.textContent = cameraName;
+  if (streamLiveImg) {
+    streamLiveImg.src = `/stream/feed?camera=${encodeURIComponent(cameraName)}&t=${Date.now()}`;
+  }
+  if (previewWrapper) previewWrapper.style.display = 'block';
+};
+
+window.handleStopCamera = async function(cameraName) {
+  try {
+    const res = await fetch('/stream/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ camera: cameraName })
+    });
+    if (res.ok) {
+      appendAssistantMessage(`STREAM STOPPED: Camera ${escapeHtml(cameraName)} stopped. Ingest complete.`);
+      fetchCameras();
+      checkIndexingStatus();
+    }
+  } catch (err) {
+    alert(`Failed to stop stream for ${cameraName}: ${err.message}`);
+  } finally {
+    checkStreamStatus();
+  }
+};
+
 async function checkStreamStatus() {
   if (!streamStatusText || !streamDetailText) return;
   try {
     const res = await fetch('/stream/status');
     if (res.ok) {
       const data = await res.json();
-      const isStreaming = (data.status === 'streaming' || data.status === 'running');
-      const isEnded = (data.status === 'finished' || data.status === 'stopped');
+      const cameras = data.cameras || {};
+      const camKeys = Object.keys(cameras);
+      const totalActive = data.total_active || 0;
 
+      const activeBadge = document.getElementById('stream-total-active-badge');
+      if (activeBadge) activeBadge.textContent = `${totalActive} active`;
+
+      const listContainer = document.getElementById('stream-cameras-list');
+      if (listContainer) {
+        if (camKeys.length === 0) {
+          listContainer.innerHTML = `
+            <div style="padding: 12px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); text-align: center;">
+              No active streams. Add a camera above to start ingest.
+            </div>
+          `;
+        } else {
+          listContainer.innerHTML = camKeys.map(camName => {
+            const cam = cameras[camName];
+            const isRunning = cam.running;
+            return `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); background: #ffffff;">
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-family: var(--font-mono); font-weight: 700; font-size: 11px;">${escapeHtml(camName)}</span>
+                    <span style="font-family: var(--font-mono); font-size: 9px; padding: 1px 4px; background: ${isRunning ? '#18181b' : '#71717a'}; color: #fff;">${isRunning ? 'RUNNING' : 'STOPPED'}</span>
+                  </div>
+                  <span style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); word-break: break-all; max-width: 200px;">${escapeHtml(cam.stream_url || '')}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="text-align: right; font-family: var(--font-mono); font-size: 10px;">
+                    <div>FPS: <b>${cam.effective_fps || 0}</b> | LAG: <b>${cam.lag || 0}s</b></div>
+                    <div style="color: var(--text-muted);">REC: ${cam.reconnect_count || 0} | ERR: ${cam.errors ? cam.errors.length : 0}</div>
+                  </div>
+                  <div style="display: flex; gap: 4px;">
+                    <button onclick="selectPreviewCamera('${escapeHtml(camName)}')" class="box-pill-btn" style="padding: 2px 6px; font-size: 10px;">View</button>
+                    ${isRunning ? `<button onclick="handleStopCamera('${escapeHtml(camName)}')" class="btn-secondary" style="height: 24px; padding: 0 6px; font-size: 10px;">Stop</button>` : ''}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
+      // Preview view handling
       const previewWrapper = document.getElementById('stream-preview-wrapper');
       const streamLiveImg = document.getElementById('stream-live-img');
       const previewCamBadge = document.getElementById('preview-camera-badge');
-      const previewFileBadge = document.getElementById('preview-file-badge');
 
-      if (isStreaming) {
-        streamStatusText.textContent = `STREAMING: ${data.camera || 'MOBILE_CAM01'}`;
-        let detail = `FPS: ${data.fps || 0} | FRAMES: ${data.frames_read || 0} | TRACKS: ${data.tracks_indexed || 0}`;
-        if (data.latest_track) {
-          detail += `\nLATEST: ${data.latest_track.color || ''} ${data.latest_track.label}`;
+      if (totalActive > 0) {
+        streamStatusText.textContent = `INGESTING (${totalActive} CAMERAS)`;
+        streamDetailText.innerText = `Active streams: ${camKeys.filter(k => cameras[k].running).join(', ')}`;
+        
+        if (!selectedPreviewCam || !cameras[selectedPreviewCam] || !cameras[selectedPreviewCam].running) {
+          const firstRunning = camKeys.find(k => cameras[k].running);
+          if (firstRunning) {
+            selectedPreviewCam = firstRunning;
+          }
         }
-        streamDetailText.innerText = detail;
-        if (btnStartStream) btnStartStream.style.display = 'none';
-        if (btnStopStream) btnStopStream.style.display = 'inline-block';
 
-        if (previewWrapper) previewWrapper.style.display = 'block';
-        if (previewCamBadge) previewCamBadge.textContent = data.camera || 'mobile_cam01';
-        if (previewFileBadge && data.recorded_file) {
-          previewFileBadge.textContent = `Recording: ${data.recorded_file}`;
+        if (selectedPreviewCam && cameras[selectedPreviewCam] && cameras[selectedPreviewCam].running) {
+          if (previewWrapper) previewWrapper.style.display = 'block';
+          if (previewCamBadge) previewCamBadge.textContent = selectedPreviewCam;
+          if (streamLiveImg && (!streamLiveImg.src || streamLiveImg.src.indexOf('/stream/feed') === -1)) {
+            streamLiveImg.src = `/stream/feed?camera=${encodeURIComponent(selectedPreviewCam)}&t=${Date.now()}`;
+          }
         }
-        if (streamLiveImg && (!streamLiveImg.src || streamLiveImg.src.indexOf('/stream/feed') === -1)) {
-          streamLiveImg.src = '/stream/feed?t=' + Date.now();
-        }
-      } else if (isEnded) {
-        streamStatusText.textContent = 'STOPPED';
-        streamDetailText.innerText = `Stream ended. Processed ${data.frames_read || 0} frames | Indexed ${data.tracks_indexed || 0} tracks.\nRecorded file: ${data.recorded_file || 'footage/recorded/'}`;
-        if (btnStartStream) btnStartStream.style.display = 'inline-block';
-        if (btnStopStream) btnStopStream.style.display = 'none';
-        if (streamLiveImg) streamLiveImg.src = '';
-        if (previewWrapper) previewWrapper.style.display = 'none';
       } else {
-        streamStatusText.textContent = (data.status || 'IDLE').toUpperCase();
-        streamDetailText.innerText = data.status === 'idle' ? 'Ready for connection.' : `Status: ${data.status}`;
-        if (btnStartStream) btnStartStream.style.display = 'inline-block';
-        if (btnStopStream) btnStopStream.style.display = 'none';
-        if (streamLiveImg) streamLiveImg.src = '';
+        streamStatusText.textContent = 'IDLE';
+        streamDetailText.innerText = 'Ready for multi-camera connections.';
         if (previewWrapper) previewWrapper.style.display = 'none';
+        if (streamLiveImg) streamLiveImg.src = '';
       }
     }
   } catch (err) {
@@ -1015,11 +1089,22 @@ async function handleStartStream() {
     const res = await fetch('/stream/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stream_url: url, camera: cam })
+      body: JSON.stringify({ camera: cam, url: url })
     });
     if (res.ok) {
-      appendAssistantMessage(`STREAM STARTED: Ingesting from ${escapeHtml(url)} under camera ${escapeHtml(cam)}. Live detections and tracks indexed.`);
+      appendAssistantMessage(`STREAM STARTED: Ingesting from ${escapeHtml(url)} under camera ${escapeHtml(cam)}. Live detections and isolated tracking running.`);
       fetchCameras();
+      selectedPreviewCam = cam;
+      // Clear URL input and advance camera name for next phone
+      streamUrlInput.value = '';
+      const match = cam.match(/(\d+)$/);
+      if (match) {
+        const nextNum = parseInt(match[1], 10) + 1;
+        const prefix = cam.slice(0, match.index);
+        streamCameraName.value = `${prefix}${String(nextNum).padStart(match[1].length, '0')}`;
+      } else {
+        streamCameraName.value = `${cam}_02`;
+      }
     } else {
       const err = await res.json();
       alert('Error starting stream: ' + (err.detail || res.statusText));
@@ -1028,24 +1113,18 @@ async function handleStartStream() {
     alert('Failed to connect to stream: ' + err.message);
   } finally {
     btnStartStream.disabled = false;
-    btnStartStream.textContent = 'Connect Stream';
+    btnStartStream.textContent = '+ Add / Start Stream';
     checkStreamStatus();
   }
 }
 
 async function handleStopStream() {
-  btnStopStream.disabled = true;
-  try {
-    const res = await fetch('/stream/stop', { method: 'POST' });
-    if (res.ok) {
-      appendAssistantMessage(`STREAM STOPPED: Video recorded. Triggered Grounding-DINO secondary indexing.`);
-      fetchCameras();
-      checkIndexingStatus();
-    }
-  } catch (err) {
-    alert('Failed to stop stream: ' + err.message);
-  } finally {
-    btnStopStream.disabled = false;
+  if (selectedPreviewCam) {
+    await handleStopCamera(selectedPreviewCam);
+  } else {
+    try {
+      await fetch('/stream/stop', { method: 'POST' });
+    } catch (e) {}
     checkStreamStatus();
   }
 }
