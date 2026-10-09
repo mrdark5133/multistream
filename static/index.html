@@ -3,74 +3,70 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MULTIStream - Natural Language Video Retrieval</title>
+  <title>MULTIStream - Video Retrieval Engine</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="app-layout">
-    <!-- Top Header -->
+    <!-- Top Symmetric Header -->
     <header class="app-header">
       <div class="brand">
         <div class="logo-icon">MS</div>
         <div>
           <h1 class="logo-title">MULTIStream</h1>
-          <p class="logo-sub">Multi-Camera Natural Language CCTV Retrieval</p>
+          <p class="logo-sub">Multi-Camera Video Retrieval</p>
         </div>
       </div>
       <div class="header-status">
         <div class="status-badge" id="health-badge">
-          <span class="status-dot"></span>
-          <span id="health-text">Connecting...</span>
+          <span class="status-indicator active" id="health-indicator"></span>
+          <span id="health-text">Online</span>
         </div>
-        <div class="status-badge indexing-badge-idle" id="indexing-badge" title="Grounding DINO Indexing Pipeline Status">
-          <span class="status-dot" id="indexing-dot" style="background-color: #38bdf8;"></span>
-          <span id="indexing-text">Grounding DINO: Ready</span>
+        <div class="status-badge" id="indexing-badge">
+          <span class="status-indicator active" id="indexing-dot"></span>
+          <span id="indexing-text">DINO: Ready</span>
         </div>
-        <div class="vram-badge" id="vram-text">GPU VRAM: -- / -- MB</div>
-        <button class="nav-btn" id="btn-open-mobile" style="background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-weight: 600;">+ Live Mobile Cam</button>
-        <button class="nav-btn" id="btn-open-poly">Polygon Drawer</button>
+        <div class="vram-badge" id="vram-text">VRAM: -- / -- MB</div>
+        <button class="nav-btn nav-btn-highlight" id="btn-open-mobile">Live Mobile Cam</button>
+        <button class="nav-btn" id="btn-open-poly">Polygon Regions</button>
       </div>
     </header>
 
-    <!-- Main Container -->
+    <!-- Main Content Area -->
     <main class="main-content">
-      <!-- Chat & Results Section -->
       <section class="chat-section">
         <div class="chat-messages" id="chat-messages">
-          <!-- Welcome message -->
-          <div class="message assistant-msg">
-            <div class="msg-avatar">AI</div>
-            <div class="msg-body">
-              <p>Welcome to <strong>MULTIStream</strong>. Query your recorded surveillance footage in natural language without cloud API dependencies.</p>
-              <div class="suggestion-pills">
-                <button class="pill-btn" onclick="setQuery('a red car near cam_landscape')">"a red car near cam_landscape"</button>
-                <button class="pill-btn" onclick="setQuery('a person at the main gate')">"a person at the main gate"</button>
-                <button class="pill-btn" onclick="setQuery('a vehicle in the last hour')">"a vehicle in the last hour"</button>
-                <button class="pill-btn" onclick="setQuery('a person walking')">"a person walking"</button>
-              </div>
+          <!-- Initial Search Interface Deck (Zero AI fluff) -->
+          <div class="deck-card">
+            <div class="deck-title">Query Console</div>
+            <div class="deck-desc">Enter natural language queries or hold TALK for push-to-talk audio search across indexed camera feeds.</div>
+            <div class="deck-grid">
+              <button class="deck-btn" onclick="setQuery('a red car near cam_landscape')">RED CAR IN CAM_LANDSCAPE</button>
+              <button class="deck-btn" onclick="setQuery('a person at the main gate')">PERSON AT MAIN GATE</button>
+              <button class="deck-btn" onclick="setQuery('where is the juice box')">WHERE IS THE JUICE BOX</button>
+              <button class="deck-btn" onclick="setQuery('power bank in mobile_cam03')">POWER BANK IN MOBILE_CAM03</button>
             </div>
           </div>
         </div>
 
-        <!-- Chat Input Bar -->
+        <!-- Symmetric Search Input Bar -->
         <div class="input-container">
           <div id="voice-status-bar" class="voice-status-bar" style="display: none;">
-            <span class="status-dot pulsing" style="background-color: #ef4444;"></span>
-            <span id="voice-status-text">Listening... Hold to talk, release to search</span>
+            <span class="status-indicator pulsing"></span>
+            <span id="voice-status-text">Audio recording active - speak query</span>
           </div>
           <form id="search-form" class="search-form">
-            <button type="button" id="btn-mic" class="mic-btn" title="Hold to Speak (Push-to-Talk)">
-              <span>🎙️</span>
-              <span id="mic-text">Hold to Talk</span>
+            <button type="button" id="btn-mic" class="mic-btn" title="Hold to Talk">
+              <span id="mic-text">Talk</span>
             </button>
             <input 
               type="text" 
               id="query-input" 
               class="query-input" 
-              placeholder="Search footage or hold mic to speak..."
+              placeholder="Enter search query or hold Talk button..."
               autocomplete="off"
             >
             <button type="submit" id="search-btn" class="search-btn">
@@ -81,115 +77,109 @@
         </div>
       </section>
 
-      <!-- Polygon Annotation Modal / Panel -->
+      <!-- Spatial Polygon Modal -->
       <aside class="poly-modal hidden" id="poly-modal">
         <div class="poly-card">
           <div class="poly-header">
-            <h3>Define Spatial Region (Polygon)</h3>
-            <button class="close-btn" id="btn-close-poly">&times;</button>
+            <h3>Define Spatial Region</h3>
+            <button class="close-btn" id="btn-close-poly">Close</button>
           </div>
           <p class="poly-instruction">
-            Select a camera and click 3+ points on the snapshot canvas to define an alias boundary.
+            Select a camera and mark 3 or more points on the frame to register a spatial boundary alias.
           </p>
           <div class="poly-controls">
             <select id="poly-camera-select" class="custom-select">
               <option value="">Loading cameras...</option>
             </select>
-            <input type="text" id="poly-alias-name" class="poly-input" placeholder="Alias name (e.g. 'north parking lot')">
+            <input type="text" id="poly-alias-name" class="poly-input" placeholder="Alias name (e.g. north parking lot)">
             <button id="btn-reset-poly" class="btn-secondary">Clear Points</button>
             <button id="btn-save-poly" class="btn-primary">Save Alias</button>
           </div>
           <div class="canvas-wrapper">
             <canvas id="poly-canvas" width="640" height="360"></canvas>
-            <div id="canvas-overlay-text" class="canvas-overlay">Click points to outline region</div>
+            <div id="canvas-overlay-text" class="canvas-overlay">Mark boundary coordinates</div>
           </div>
         </div>
       </aside>
 
-      <!-- Live Mobile Cam Connector Modal -->
+      <!-- Mobile Camera Connector Modal -->
       <aside class="poly-modal hidden" id="mobile-modal">
-        <div class="poly-card" style="width: 620px;">
+        <div class="poly-card" style="width: 640px;">
           <div class="poly-header">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 20px;">📱</span>
-              <h3 style="margin: 0; font-size: 16px;">Connect Phone Camera (IP Webcam)</h3>
-            </div>
-            <button class="close-btn" id="btn-close-mobile">&times;</button>
+            <h3>Connect Phone Camera (IP Webcam)</h3>
+            <button class="close-btn" id="btn-close-mobile">Close</button>
           </div>
-          <p class="poly-instruction" style="margin-bottom: 14px;">
-            Stream live from your mobile phone over Wi-Fi or Hotspot. Open <strong>IP Webcam</strong> on Android (or RTSP on iOS), tap <em>Start Server</em>, and enter the stream link below. Runtime YOLO detection, color tagging, and SQLite indexing will process the feed continuously.
+          <p class="poly-instruction">
+            Connect live stream from phone camera over local network. Streamed frames are analyzed with object detection and spatial indexing.
           </p>
           <div style="display: flex; flex-direction: column; gap: 14px;">
             <div>
-              <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">
-                Phone Stream Link / IP Webcam URL:
+              <label style="display: block; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; margin-bottom: 5px;">
+                Stream Source URL:
               </label>
               <input 
                 type="text" 
                 id="stream-url-input" 
                 class="poly-input" 
-                placeholder="Paste URL: http://192.168.1.105:8080/video" 
+                placeholder="http://192.168.1.105:8080/video" 
                 value=""
-                style="width: 100%; font-family: monospace;"
+                style="width: 100%;"
               >
               <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
-                <span style="font-size: 11px; color: var(--text-muted);">Quick Presets:</span>
-                <button type="button" id="btn-fill-ipwebcam" class="pill-btn" style="padding: 2px 8px; font-size: 11px;">Sample IP Webcam URL</button>
-                <button type="button" id="btn-fill-demo" class="pill-btn" style="padding: 2px 8px; font-size: 11px;">Demo Video File</button>
+                <span style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Presets:</span>
+                <button type="button" id="btn-fill-ipwebcam" class="box-pill-btn">Sample IP Webcam</button>
+                <button type="button" id="btn-fill-demo" class="box-pill-btn">Demo Video File</button>
               </div>
             </div>
 
             <div>
-              <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">
-                Camera Identifier (Name):
+              <label style="display: block; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; margin-bottom: 5px;">
+                Camera Identifier:
               </label>
               <input 
                 type="text" 
                 id="stream-camera-name" 
                 class="poly-input" 
-                placeholder="e.g. mobile_cam01" 
+                placeholder="mobile_cam01" 
                 value="mobile_cam01"
-                style="width: 100%; font-family: monospace;"
+                style="width: 100%;"
               >
-              <span style="font-size: 11px; color: var(--text-muted); margin-top: 3px; display: block;">
-                Use this name in chat queries (e.g. <em>"car in mobile_cam01"</em> or <em>"in mobile_cam01"</em>).
-              </span>
             </div>
 
-            <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08);">
-              <button id="btn-stop-stream" class="btn-secondary" style="display: none; background: #dc2626; color: white; border: none; font-weight: 600;">
-                ⏹ Stop Live Stream
+            <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-subtle);">
+              <button id="btn-stop-stream" class="btn-secondary" style="display: none;">
+                Stop Stream
               </button>
-              <button id="btn-start-stream" class="btn-primary" style="background: #10b981; font-weight: 600;">
-                ▶ Connect & Start Live Ingest
+              <button id="btn-start-stream" class="btn-primary">
+                Connect Stream
               </button>
             </div>
 
             <!-- Live Camera Stream Video View -->
-            <div id="stream-preview-wrapper" style="display: none; width: 100%; border-radius: 8px; overflow: hidden; background: #000; position: relative; border: 1px solid rgba(255,255,255,0.15);">
-              <img id="stream-live-img" src="" alt="Live Mobile Stream Feed" style="width: 100%; height: auto; max-height: 280px; object-fit: contain; display: block;">
-              <div style="position: absolute; top: 8px; left: 8px; display: flex; gap: 6px; align-items: center;">
-                <span id="preview-rec-badge" style="background: rgba(220, 38, 38, 0.95); color: white; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
-                  <span style="width: 7px; height: 7px; background: white; border-radius: 50%; display: inline-block;"></span> REC
+            <div id="stream-preview-wrapper" style="display: none; width: 100%; background: #000; position: relative; border: 1px solid var(--border-strong);">
+              <img id="stream-live-img" src="" alt="Live Stream View" style="width: 100%; height: auto; max-height: 280px; object-fit: contain; display: block;">
+              <div style="position: absolute; top: 6px; left: 6px; display: flex; gap: 6px; align-items: center;">
+                <span id="preview-rec-badge" style="background: #18181b; color: #fff; padding: 2px 6px; font-family: var(--font-mono); font-size: 10px; font-weight: 700;">
+                  REC
                 </span>
-                <span id="preview-camera-badge" style="background: rgba(0,0,0,0.75); color: #38bdf8; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-family: monospace;">
+                <span id="preview-camera-badge" style="background: #fff; color: #18181b; border: 1px solid #18181b; padding: 2px 6px; font-family: var(--font-mono); font-size: 10px;">
                   mobile_cam01
                 </span>
               </div>
-              <div id="preview-file-badge" style="position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.8); color: #cbd5e1; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-family: monospace;">
-                Recording active to disk
+              <div id="preview-file-badge" style="position: absolute; bottom: 6px; left: 6px; background: #fff; color: #18181b; border: 1px solid #18181b; padding: 2px 6px; font-family: var(--font-mono); font-size: 10px;">
+                Recording to disk
               </div>
             </div>
 
-            <div id="stream-status-box" style="font-size: 13px; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+            <div id="stream-status-box" style="padding: 12px; background: var(--bg-subtle); border: 1px solid var(--border-strong);">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <span style="font-weight: 600; color: var(--text-main);">Live Stream & Recording Status</span>
-                <span id="stream-status-text" style="padding: 2px 8px; border-radius: 12px; font-size: 11px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 600;">
+                <span style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; text-transform: uppercase;">Stream Ingest Status</span>
+                <span id="stream-status-text" style="font-family: var(--font-mono); font-size: 10px; font-weight: 700; text-transform: uppercase;">
                   IDLE
                 </span>
               </div>
-              <div id="stream-detail-text" style="font-family: monospace; font-size: 12px; line-height: 1.5; color: var(--text-main);">
-                Enter your IP Webcam URL above and click Connect.
+              <div id="stream-detail-text" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">
+                Ready for connection.
               </div>
             </div>
           </div>

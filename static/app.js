@@ -1,9 +1,11 @@
-// MULTIStream Frontend Logic
+// MULTIStream Frontend Logic - Clean Minimalist Boxy Design
+// No emojis, no AI fluff, strict geometric layout.
 
 const chatMessages = document.getElementById('chat-messages');
 const searchForm = document.getElementById('search-form');
 const queryInput = document.getElementById('query-input');
 const healthBadge = document.getElementById('health-badge');
+const healthIndicator = document.getElementById('health-indicator');
 const healthText = document.getElementById('health-text');
 const vramText = document.getElementById('vram-text');
 
@@ -29,13 +31,6 @@ const btnStopStream = document.getElementById('btn-stop-stream');
 const streamStatusText = document.getElementById('stream-status-text');
 const streamDetailText = document.getElementById('stream-detail-text');
 
-let knownCameras = [];
-let currentPolyPoints = [];
-let currentBgImage = new Image();
-let streamPollTimer = null;
-let indexingPollTimer = null;
-let previousIndexingState = 'idle';
-
 // Indexing Status Elements
 const indexingBadge = document.getElementById('indexing-badge');
 const indexingDot = document.getElementById('indexing-dot');
@@ -47,6 +42,13 @@ const micText = document.getElementById('mic-text');
 const voiceStatusBar = document.getElementById('voice-status-bar');
 const voiceStatusText = document.getElementById('voice-status-text');
 const voicePlayer = document.getElementById('voice-player');
+
+let knownCameras = [];
+let currentPolyPoints = [];
+let currentBgImage = new Image();
+let streamPollTimer = null;
+let indexingPollTimer = null;
+let previousIndexingState = 'idle';
 
 let audioContext = null;
 let mediaStream = null;
@@ -141,35 +143,47 @@ function setupEventListeners() {
   }
 
   // Polygon modal events
-  btnOpenPoly.addEventListener('click', () => {
-    polyModal.classList.remove('hidden');
-    loadCameraCanvas();
-  });
+  if (btnOpenPoly) {
+    btnOpenPoly.addEventListener('click', () => {
+      polyModal.classList.remove('hidden');
+      loadCameraCanvas();
+    });
+  }
 
-  btnClosePoly.addEventListener('click', () => {
-    polyModal.classList.add('hidden');
-  });
+  if (btnClosePoly) {
+    btnClosePoly.addEventListener('click', () => {
+      polyModal.classList.add('hidden');
+    });
+  }
 
-  polyCamSelect.addEventListener('change', () => {
-    loadCameraCanvas();
-  });
+  if (polyCamSelect) {
+    polyCamSelect.addEventListener('change', () => {
+      loadCameraCanvas();
+    });
+  }
 
-  polyCanvas.addEventListener('click', (e) => {
-    const rect = polyCanvas.getBoundingClientRect();
-    const scaleX = polyCanvas.width / rect.width;
-    const scaleY = polyCanvas.height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
-    currentPolyPoints.push([x, y]);
-    drawPolygon();
-  });
+  if (polyCanvas) {
+    polyCanvas.addEventListener('click', (e) => {
+      const rect = polyCanvas.getBoundingClientRect();
+      const scaleX = polyCanvas.width / rect.width;
+      const scaleY = polyCanvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      currentPolyPoints.push([x, y]);
+      drawPolygon();
+    });
+  }
 
-  btnResetPoly.addEventListener('click', () => {
-    currentPolyPoints = [];
-    drawPolygon();
-  });
+  if (btnResetPoly) {
+    btnResetPoly.addEventListener('click', () => {
+      currentPolyPoints = [];
+      drawPolygon();
+    });
+  }
 
-  btnSavePoly.addEventListener('click', handleSavePolygonAlias);
+  if (btnSavePoly) {
+    btnSavePoly.addEventListener('click', handleSavePolygonAlias);
+  }
 }
 
 // --- Health & Cameras ---
@@ -178,12 +192,12 @@ async function fetchHealth() {
     const res = await fetch('/health');
     if (res.ok) {
       const data = await res.json();
-      healthBadge.querySelector('.status-dot').classList.add('active');
-      healthText.textContent = `Online (${data.models.device})`;
-      vramText.textContent = `GPU VRAM: ${data.vram.used_mib} / ${data.vram.total_mib} MB`;
+      if (healthIndicator) healthIndicator.classList.add('active');
+      if (healthText) healthText.textContent = `Online (${data.models.device.toUpperCase()})`;
+      if (vramText) vramText.textContent = `VRAM: ${data.vram.used_mib} / ${data.vram.total_mib} MB`;
     }
   } catch (err) {
-    healthText.textContent = 'Offline';
+    if (healthText) healthText.textContent = 'Offline';
     console.error('Health check failed:', err);
   }
 }
@@ -193,9 +207,11 @@ async function fetchCameras() {
     const res = await fetch('/cameras');
     if (res.ok) {
       knownCameras = await res.json();
-      polyCamSelect.innerHTML = knownCameras.map(c => 
-        `<option value="${c.camera}">${c.camera} (${c.width}x${c.height})</option>`
-      ).join('');
+      if (polyCamSelect) {
+        polyCamSelect.innerHTML = knownCameras.map(c => 
+          `<option value="${c.camera}">${c.camera} (${c.width}x${c.height})</option>`
+        ).join('');
+      }
     }
   } catch (err) {
     console.error('Failed to load cameras:', err);
@@ -233,7 +249,7 @@ async function handleSearch(queryText) {
     }
   } catch (err) {
     removeMessage(loadingMsgId);
-    appendAssistantMessage(`Error executing search: ${err.message}`);
+    appendAssistantMessage(`Error executing query: ${err.message}`);
   }
 }
 
@@ -281,11 +297,11 @@ async function startVoiceRecording() {
 
     if (btnMic) {
       btnMic.classList.add('recording');
-      if (micText) micText.textContent = 'Recording...';
+      if (micText) micText.textContent = 'Recording';
     }
     if (voiceStatusBar) {
       voiceStatusBar.style.display = 'flex';
-      if (voiceStatusText) voiceStatusText.textContent = 'Listening... Speak your query (release to send)';
+      if (voiceStatusText) voiceStatusText.textContent = 'Audio recording active: speak query (release to submit)';
     }
   } catch (err) {
     console.error('Error starting audio recording:', err);
@@ -300,7 +316,7 @@ async function stopVoiceRecording(shouldSend = true) {
 
   if (btnMic) {
     btnMic.classList.remove('recording');
-    if (micText) micText.textContent = 'Hold to Talk';
+    if (micText) micText.textContent = 'Talk';
   }
 
   if (scriptProcessor) {
@@ -319,7 +335,7 @@ async function stopVoiceRecording(shouldSend = true) {
   }
 
   if (voiceStatusText) {
-    voiceStatusText.textContent = 'Transcribing with Whisper & searching...';
+    voiceStatusText.textContent = 'Processing: Whisper ASR & retrieval...';
   }
 
   // Concatenate Float32Array chunks
@@ -410,7 +426,7 @@ async function sendVoiceQuery(wavBlob) {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
-      appendAssistantMessage(`⚠️ Voice error: ${escapeHtml(err.detail || res.statusText)}`);
+      appendAssistantMessage(`Voice error: ${escapeHtml(err.detail || res.statusText)}`);
       return;
     }
 
@@ -419,7 +435,7 @@ async function sendVoiceQuery(wavBlob) {
   } catch (err) {
     if (voiceStatusBar) voiceStatusBar.style.display = 'none';
     console.error('Failed to send voice query:', err);
-    appendAssistantMessage(`⚠️ Voice request failed: ${escapeHtml(err.message)}`);
+    appendAssistantMessage(`Voice request failed: ${escapeHtml(err.message)}`);
   }
 }
 
@@ -427,7 +443,7 @@ function handleVoiceResponse(data) {
   const transcript = data.transcript || '';
   queryInput.value = transcript;
 
-  appendUserMessage(`🎙️ "${transcript}"`);
+  appendUserMessage(`Audio query: "${transcript}"`);
 
   // Play audio response if provided
   if (data.audio_url && voicePlayer) {
@@ -439,7 +455,7 @@ function handleVoiceResponse(data) {
   const timings = data.timings_ms || {};
   const timingsBadge = `
     <div class="voice-timings">
-      ASR: ${timings.asr || 0}ms | Search: ${timings.search || 0}ms | TTS: ${timings.tts || 0}ms | Total: ${timings.total || 0}ms
+      ASR: ${timings.asr || 0}ms | SEARCH: ${timings.search || 0}ms | TTS: ${timings.tts || 0}ms | TOTAL: ${timings.total || 0}ms
     </div>
   `;
 
@@ -467,12 +483,10 @@ function appendVoiceClarificationCard(query, referent, options, spokenText, timi
 
   const html = `
     <div class="clarify-card">
-      <div class="clarify-title">
-        <span>⚠️ Clarification Required</span>
-      </div>
-      <p>🔊 <em>"${escapeHtml(spokenText)}"</em></p>
-      <p style="margin-top: 8px; font-size: 13px; color: var(--text-muted);">
-        Which camera covers this location? Click a button or speak the camera name:
+      <div class="clarify-title">CLARIFICATION REQUIRED: REFERENT UNMAPPED</div>
+      <p>Spoken prompt: <em>"${escapeHtml(spokenText)}"</em></p>
+      <p style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+        Select camera to bind alias:
       </p>
       <div class="clarify-options">
         ${optionsHtml}
@@ -486,9 +500,9 @@ function appendVoiceClarificationCard(query, referent, options, spokenText, timi
 function appendVoiceResultsCard(query, parsed, results, spokenText, timingsBadge) {
   if (!results || results.length === 0) {
     appendAssistantMessage(`
-      <p>🔊 <em>"${escapeHtml(spokenText)}"</em></p>
-      <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
-        Object prompt: <code>${escapeHtml(parsed?.object_prompt || '')}</code> | Provider: ${parsed?.provider || 'fast'}
+      <p>Spoken response: <em>"${escapeHtml(spokenText)}"</em></p>
+      <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); margin-top: 6px;">
+        PROMPT: ${escapeHtml(parsed?.object_prompt || '')} | PROVIDER: ${parsed?.provider || 'fast'}
       </div>
       ${timingsBadge}
     `);
@@ -498,31 +512,50 @@ function appendVoiceResultsCard(query, parsed, results, spokenText, timingsBadge
   const resultsHtml = results.map((r) => `
     <div class="result-card">
       <div class="result-preview" id="preview-${r.id}">
-        <img src="${r.snapshot_url}" alt="Snapshot of ${r.label}" onerror="this.src='/static/placeholder.jpg'">
+        <img src="${r.snapshot_url}" alt="Snapshot ${r.label}" onerror="this.src='/static/placeholder.jpg'">
       </div>
       <div class="result-info">
         <div>
-          <div class="result-meta">
-            <span class="meta-badge badge-score">Match: ${(r.score * 100).toFixed(1)}%</span>
-            <span class="meta-badge badge-cam">${escapeHtml(r.camera)}</span>
-            <span class="meta-badge">${escapeHtml(r.label)}</span>
-            ${r.color && r.color !== 'unknown' ? `<span class="meta-badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); font-weight: 600;">Color: ${escapeHtml(r.color)}</span>` : ''}
-            <span class="meta-badge">${formatTimestamp(r.timestamp)}</span>
-            <span class="meta-badge">Offset: ${r.offset_seconds.toFixed(2)}s</span>
+          <div class="meta-grid">
+            <div class="meta-box">
+              <span class="meta-key">Match</span>
+              <span class="meta-val">${(r.score * 100).toFixed(1)}%</span>
+            </div>
+            <div class="meta-box">
+              <span class="meta-key">Camera</span>
+              <span class="meta-val">${escapeHtml(r.camera)}</span>
+            </div>
+            <div class="meta-box">
+              <span class="meta-key">Object</span>
+              <span class="meta-val">${escapeHtml(r.label)}</span>
+            </div>
+            ${r.color && r.color !== 'unknown' ? `
+            <div class="meta-box">
+              <span class="meta-key">Color</span>
+              <span class="meta-val">${escapeHtml(r.color)}</span>
+            </div>` : ''}
+            <div class="meta-box">
+              <span class="meta-key">Timestamp</span>
+              <span class="meta-val">${formatTimestamp(r.timestamp)}</span>
+            </div>
+            <div class="meta-box">
+              <span class="meta-key">Offset</span>
+              <span class="meta-val">${r.offset_seconds.toFixed(2)}s</span>
+            </div>
           </div>
-          <div style="font-size: 13px; color: var(--text-muted);">
-            Result ID: <code>${escapeHtml(r.id)}</code> (${r.type})
+          <div class="result-id-line">
+            ID: ${escapeHtml(r.id)} (${r.type})
           </div>
         </div>
-        <button class="btn-play" onclick="playClip('${r.id}', '${r.clip_url}')">Play Video Clip</button>
+        <button class="btn-play" onclick="playClip('${r.id}', '${r.clip_url}')">Play Clip</button>
       </div>
     </div>
   `).join('');
 
   const fullHtml = `
     <div>
-      <div style="font-size: 14px; margin-bottom: 8px; color: var(--accent); font-weight: 500;">
-        🔊 <em>"${escapeHtml(spokenText)}"</em>
+      <div style="font-family: var(--font-mono); font-size: 12px; margin-bottom: 8px; color: var(--text-main); font-weight: 600;">
+        SPOKEN ANSWER: "${escapeHtml(spokenText)}"
       </div>
       <div class="results-container">
         ${resultsHtml}
@@ -538,7 +571,7 @@ function appendUserMessage(text) {
   const msgEl = document.createElement('div');
   msgEl.className = 'message user-msg';
   msgEl.innerHTML = `
-    <div class="msg-avatar">YOU</div>
+    <div class="msg-header-tag">USER</div>
     <div class="msg-body">${escapeHtml(text)}</div>
   `;
   chatMessages.appendChild(msgEl);
@@ -549,7 +582,7 @@ function appendAssistantMessage(htmlContent) {
   const msgEl = document.createElement('div');
   msgEl.className = 'message assistant-msg';
   msgEl.innerHTML = `
-    <div class="msg-avatar">AI</div>
+    <div class="msg-header-tag">SYSTEM</div>
     <div class="msg-body">${htmlContent}</div>
   `;
   chatMessages.appendChild(msgEl);
@@ -562,9 +595,11 @@ function appendAssistantLoading() {
   msgEl.className = 'message assistant-msg';
   msgEl.id = id;
   msgEl.innerHTML = `
-    <div class="msg-avatar">AI</div>
+    <div class="msg-header-tag">SYSTEM</div>
     <div class="msg-body">
-      <span style="color: var(--text-muted);">Analyzing video embeddings and spatio-temporal index...</span>
+      <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">
+        PROCESSING: Executing spatio-temporal index search...
+      </span>
     </div>
   `;
   chatMessages.appendChild(msgEl);
@@ -586,12 +621,10 @@ function appendClarificationCard(originalQuery, referent, options) {
 
   const html = `
     <div class="clarify-card">
-      <div class="clarify-title">
-        <span>&#9888; Clarification Required</span>
-      </div>
-      <p>The location referent <strong>"${escapeHtml(referent)}"</strong> is unknown and not mapped to any camera.</p>
-      <p style="margin-top: 8px; font-size: 13px; color: var(--text-muted);">
-        Which camera covers this location? Click to resolve and save permanently:
+      <div class="clarify-title">CLARIFICATION REQUIRED: REFERENT UNMAPPED</div>
+      <p>Location referent <strong>"${escapeHtml(referent)}"</strong> is not bound to a camera.</p>
+      <p style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+        Select camera to bind alias:
       </p>
       <div class="clarify-options">
         ${optionsHtml}
@@ -609,12 +642,11 @@ async function resolveClarification(referent, cameraName, originalQuery) {
       body: JSON.stringify({ name: referent, camera: cameraName })
     });
     if (res.ok) {
-      appendAssistantMessage(`&#10004; Saved alias: <strong>${escapeHtml(referent)}</strong> &rarr; <strong>${escapeHtml(cameraName)}</strong>. Resuming query...`);
-      // Re-run original query
+      appendAssistantMessage(`Alias registered: <strong>${escapeHtml(referent)}</strong> &rarr; <strong>${escapeHtml(cameraName)}</strong>. Resuming query...`);
       handleSearch(originalQuery);
     }
   } catch (err) {
-    alert('Failed to save alias: ' + err.message);
+    alert('Failed to register alias: ' + err.message);
   }
 }
 
@@ -622,41 +654,61 @@ function appendResultsCard(query, parsed, results, elapsedMs) {
   if (!results || results.length === 0) {
     appendAssistantMessage(`
       <p>No matching objects found for <em>"${escapeHtml(query)}"</em>.</p>
-      <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
-        Object prompt: <code>${escapeHtml(parsed.object_prompt)}</code> | Provider: ${parsed.provider} | Latency: ${elapsedMs}ms
+      <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); margin-top: 6px;">
+        OBJECT: ${escapeHtml(parsed.object_prompt)} | PROVIDER: ${parsed.provider} | LATENCY: ${elapsedMs}ms
       </div>
     `);
     return;
   }
 
-  const resultsHtml = results.map((r, i) => `
+  const resultsHtml = results.map((r) => `
     <div class="result-card">
       <div class="result-preview" id="preview-${r.id}">
-        <img src="${r.snapshot_url}" alt="Snapshot of ${r.label}" onerror="this.src='/static/placeholder.jpg'">
+        <img src="${r.snapshot_url}" alt="Snapshot ${r.label}" onerror="this.src='/static/placeholder.jpg'">
       </div>
       <div class="result-info">
         <div>
-          <div class="result-meta">
-            <span class="meta-badge badge-score">Match: ${(r.score * 100).toFixed(1)}%</span>
-            <span class="meta-badge badge-cam">${escapeHtml(r.camera)}</span>
-            <span class="meta-badge">${escapeHtml(r.label)}</span>
-            ${r.color && r.color !== 'unknown' ? `<span class="meta-badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); font-weight: 600;">Color: ${escapeHtml(r.color)}</span>` : ''}
-            <span class="meta-badge">${formatTimestamp(r.timestamp)}</span>
-            <span class="meta-badge">Offset: ${r.offset_seconds.toFixed(2)}s</span>
+          <div class="meta-grid">
+            <div class="meta-box">
+              <span class="meta-key">Match</span>
+              <span class="meta-val">${(r.score * 100).toFixed(1)}%</span>
+            </div>
+            <div class="meta-box">
+              <span class="meta-key">Camera</span>
+              <span class="meta-val">${escapeHtml(r.camera)}</span>
+            </div>
+            <div class="meta-box">
+              <span class="meta-key">Object</span>
+              <span class="meta-val">${escapeHtml(r.label)}</span>
+            </div>
+            ${r.color && r.color !== 'unknown' ? `
+            <div class="meta-box">
+              <span class="meta-key">Color</span>
+              <span class="meta-val">${escapeHtml(r.color)}</span>
+            </div>` : ''}
+            <div class="meta-box">
+              <span class="meta-key">Timestamp</span>
+              <span class="meta-val">${formatTimestamp(r.timestamp)}</span>
+            </div>
+            <div class="meta-box">
+              <span class="meta-key">Offset</span>
+              <span class="meta-val">${r.offset_seconds.toFixed(2)}s</span>
+            </div>
           </div>
-          <div style="font-size: 13px; color: var(--text-muted);">
-            Result ID: <code>${escapeHtml(r.id)}</code> (${r.type})
+          <div class="result-id-line">
+            ID: ${escapeHtml(r.id)} (${r.type})
           </div>
         </div>
-        <button class="btn-play" onclick="playClip('${r.id}', '${r.clip_url}')">Play Video Clip</button>
+        <button class="btn-play" onclick="playClip('${r.id}', '${r.clip_url}')">Play Clip</button>
       </div>
     </div>
   `).join('');
 
   const fullHtml = `
     <div>
-      <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">
-        Found ${results.length} results for <strong>"${escapeHtml(query)}"</strong> (${elapsedMs} ms)
+      <div class="results-summary-bar">
+        <span>Results: ${results.length} matched</span>
+        <span>Latency: ${elapsedMs} ms</span>
       </div>
       <div class="results-container">
         ${resultsHtml}
@@ -683,11 +735,9 @@ function loadCameraCanvas() {
   const selectedCam = polyCamSelect.value;
   if (!selectedCam) return;
 
-  // Find camera snapshot or draw dark placeholder
-  ctx.fillStyle = '#161b22';
+  ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, polyCanvas.width, polyCanvas.height);
   
-  // Try loading first snapshot of that camera
   fetch('/cameras').then(res => res.json()).then(cams => {
     const camInfo = cams.find(c => c.camera === selectedCam);
     if (camInfo) {
@@ -695,7 +745,6 @@ function loadCameraCanvas() {
         ctx.drawImage(currentBgImage, 0, 0, polyCanvas.width, polyCanvas.height);
         drawPolygon();
       };
-      // Load sample snapshot
       currentBgImage.src = `/snapshot/${selectedCam}`;
     }
   });
@@ -709,15 +758,14 @@ function drawPolygon() {
   if (currentBgImage.complete && currentBgImage.naturalWidth > 0) {
     ctx.drawImage(currentBgImage, 0, 0, polyCanvas.width, polyCanvas.height);
   } else {
-    ctx.fillStyle = '#161b22';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, polyCanvas.width, polyCanvas.height);
   }
 
   if (currentPolyPoints.length === 0) return;
 
-  // Draw points & path
-  ctx.strokeStyle = '#58a6ff';
-  ctx.fillStyle = 'rgba(88, 166, 255, 0.25)';
+  ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
   ctx.lineWidth = 2;
 
   ctx.beginPath();
@@ -731,12 +779,10 @@ function drawPolygon() {
   }
   ctx.stroke();
 
-  // Draw vertices
-  ctx.fillStyle = '#388bfd';
+  // Draw square vertices (boxy style)
+  ctx.fillStyle = '#ffffff';
   for (const pt of currentPolyPoints) {
-    ctx.beginPath();
-    ctx.arc(pt[0], pt[1], 4, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(pt[0] - 3, pt[1] - 3, 6, 6);
   }
 }
 
@@ -744,15 +790,14 @@ async function handleSavePolygonAlias() {
   const name = polyAliasName.value.trim();
   const cam = polyCamSelect.value;
   if (!name || !cam) {
-    alert('Please enter an alias name and select a camera.');
+    alert('Enter alias name and select camera.');
     return;
   }
   if (currentPolyPoints.length < 3) {
-    alert('Please click at least 3 points on the canvas to define a valid polygon.');
+    alert('Mark at least 3 points on canvas to define boundary.');
     return;
   }
 
-  // Normalize points [x/W, y/H] in [0, 1]
   const normPoly = currentPolyPoints.map(p => [
     parseFloat((p[0] / polyCanvas.width).toFixed(4)),
     parseFloat((p[1] / polyCanvas.height).toFixed(4))
@@ -769,7 +814,7 @@ async function handleSavePolygonAlias() {
       })
     });
     if (res.ok) {
-      alert(`Alias '${name}' saved successfully with ${normPoly.length}-point spatial polygon!`);
+      alert(`Alias '${name}' registered with ${normPoly.length}-point boundary.`);
       polyModal.classList.add('hidden');
       polyAliasName.value = '';
       currentPolyPoints = [];
@@ -820,12 +865,10 @@ async function checkStreamStatus() {
       const previewFileBadge = document.getElementById('preview-file-badge');
 
       if (isStreaming) {
-        streamStatusText.textContent = `● STREAMING (${data.camera || 'mobile_cam01'})`;
-        streamStatusText.style.background = 'rgba(16, 185, 129, 0.2)';
-        streamStatusText.style.color = '#34d399';
-        let detail = `FPS: ${data.fps || 0} | Frames: ${data.frames_read || 0} | Tracks: ${data.tracks_indexed || 0}`;
+        streamStatusText.textContent = `STREAMING: ${data.camera || 'MOBILE_CAM01'}`;
+        let detail = `FPS: ${data.fps || 0} | FRAMES: ${data.frames_read || 0} | TRACKS: ${data.tracks_indexed || 0}`;
         if (data.latest_track) {
-          detail += `\nLatest object: ${data.latest_track.color || ''} ${data.latest_track.label}`;
+          detail += `\nLATEST: ${data.latest_track.color || ''} ${data.latest_track.label}`;
         }
         streamDetailText.innerText = detail;
         if (btnStartStream) btnStartStream.style.display = 'none';
@@ -841,18 +884,14 @@ async function checkStreamStatus() {
         }
       } else if (isEnded) {
         streamStatusText.textContent = 'STOPPED';
-        streamStatusText.style.background = 'rgba(245, 158, 11, 0.2)';
-        streamStatusText.style.color = '#fbbf24';
-        streamDetailText.innerText = `Stream ended. Processed ${data.frames_read || 0} frames | Indexed ${data.tracks_indexed || 0} tracks.\nRecorded video saved: ${data.recorded_file || 'footage/recorded/'}`;
+        streamDetailText.innerText = `Stream ended. Processed ${data.frames_read || 0} frames | Indexed ${data.tracks_indexed || 0} tracks.\nRecorded file: ${data.recorded_file || 'footage/recorded/'}`;
         if (btnStartStream) btnStartStream.style.display = 'inline-block';
         if (btnStopStream) btnStopStream.style.display = 'none';
         if (streamLiveImg) streamLiveImg.src = '';
         if (previewWrapper) previewWrapper.style.display = 'none';
       } else {
         streamStatusText.textContent = (data.status || 'IDLE').toUpperCase();
-        streamStatusText.style.background = 'rgba(56, 189, 248, 0.15)';
-        streamStatusText.style.color = '#38bdf8';
-        streamDetailText.innerText = data.status === 'idle' ? 'Enter your IP Webcam URL above and click Connect.' : `Status: ${data.status}`;
+        streamDetailText.innerText = data.status === 'idle' ? 'Ready for connection.' : `Status: ${data.status}`;
         if (btnStartStream) btnStartStream.style.display = 'inline-block';
         if (btnStopStream) btnStopStream.style.display = 'none';
         if (streamLiveImg) streamLiveImg.src = '';
@@ -868,7 +907,7 @@ async function handleStartStream() {
   const url = streamUrlInput.value.trim();
   const cam = streamCameraName.value.trim() || 'mobile_cam01';
   if (!url) {
-    alert('Please enter a stream URL (e.g. http://192.168.1.105:8080/video or footage/traffic_video.mp4)');
+    alert('Enter stream URL');
     return;
   }
   btnStartStream.disabled = true;
@@ -880,8 +919,7 @@ async function handleStartStream() {
       body: JSON.stringify({ stream_url: url, camera: cam })
     });
     if (res.ok) {
-      const data = await res.json();
-      appendAssistantMessage(`&#128249; <strong>Live Mobile Stream Started</strong>: Ingesting from <code>${escapeHtml(url)}</code> under camera <strong>${escapeHtml(cam)}</strong>. Detections, tracks, and dominant colors are stored live into the database! Try asking: <em>"car in ${escapeHtml(cam)}"</em> or <em>"bus in ${escapeHtml(cam)}"</em>.`);
+      appendAssistantMessage(`STREAM STARTED: Ingesting from ${escapeHtml(url)} under camera ${escapeHtml(cam)}. Live detections and tracks indexed.`);
       fetchCameras();
     } else {
       const err = await res.json();
@@ -891,7 +929,7 @@ async function handleStartStream() {
     alert('Failed to connect to stream: ' + err.message);
   } finally {
     btnStartStream.disabled = false;
-    btnStartStream.textContent = 'Connect & Start Live Ingest';
+    btnStartStream.textContent = 'Connect Stream';
     checkStreamStatus();
   }
 }
@@ -901,7 +939,7 @@ async function handleStopStream() {
   try {
     const res = await fetch('/stream/stop', { method: 'POST' });
     if (res.ok) {
-      appendAssistantMessage(`&#9209; <strong>Live Mobile Capture Stopped</strong>.<br>The video has been saved to disk. <strong>Taking time now to run Grounding DINO</strong> to extract fine-grained objects (juice box, power bank, extension board, charger, speaker, laptop, monitor) into persistent storage.<br><br><span style="color: #fbbf24;">⏳ Look at the top header status: <strong>Grounding DINO Indexing</strong> will pulse while processing. Once it turns green, ask in chat to fetch your objects!</span>`);
+      appendAssistantMessage(`STREAM STOPPED: Video recorded. Triggered Grounding-DINO secondary indexing.`);
       fetchCameras();
       checkIndexingStatus();
     }
@@ -921,30 +959,22 @@ async function checkIndexingStatus() {
     if (res.ok) {
       const data = await res.json();
       if (data.status === 'running') {
-        indexingBadge.className = 'status-badge indexing-badge-running';
-        indexingDot.className = 'status-dot pulsing';
-        indexingDot.style.backgroundColor = '#f59e0b';
-        indexingText.textContent = `⏳ Grounding DINO: Processing ${data.video || 'footage'}...`;
+        if (indexingDot) indexingDot.className = 'status-indicator pulsing';
+        indexingText.textContent = `DINO: INDEXING ${data.video || 'FOOTAGE'}...`;
         previousIndexingState = 'running';
       } else if (data.status === 'completed') {
-        indexingBadge.className = 'status-badge indexing-badge-completed';
-        indexingDot.className = 'status-dot active';
-        indexingDot.style.backgroundColor = '#10b981';
-        indexingText.textContent = `✓ Grounding DINO: Ready to Fetch (${data.tracks_indexed || 0} objects)`;
+        if (indexingDot) indexingDot.className = 'status-indicator active';
+        indexingText.textContent = `DINO: READY (${data.tracks_indexed || 0} OBJECTS)`;
         if (previousIndexingState === 'running') {
-          appendAssistantMessage(`&#9989; <strong>Grounding DINO Indexing Complete!</strong><br>Indexed ${data.tracks_indexed || 0} desk objects into storage with high-precision bounding boxes. You can now fetch them anytime (e.g., <em>"where is the juice box?"</em> or <em>"where is the extension board?"</em>).`);
+          appendAssistantMessage(`INDEXING COMPLETE: Indexed ${data.tracks_indexed || 0} fine-grained objects into database.`);
           previousIndexingState = 'completed';
         }
       } else if (data.status === 'error') {
-        indexingBadge.className = 'status-badge indexing-badge-running';
-        indexingDot.className = 'status-dot';
-        indexingDot.style.backgroundColor = '#ef4444';
-        indexingText.textContent = `❌ Indexing Error`;
+        if (indexingDot) indexingDot.className = 'status-indicator';
+        indexingText.textContent = `DINO: ERROR`;
       } else {
-        indexingBadge.className = 'status-badge indexing-badge-idle';
-        indexingDot.className = 'status-dot active';
-        indexingDot.style.backgroundColor = '#38bdf8';
-        indexingText.textContent = `Grounding DINO: Ready (${data.total_database_tracks || 0} tracks)`;
+        if (indexingDot) indexingDot.className = 'status-indicator active';
+        indexingText.textContent = `DINO: READY (${data.total_database_tracks || 0} TRACKS)`;
       }
     }
   } catch (err) {
