@@ -25,6 +25,10 @@
           <span class="status-dot"></span>
           <span id="health-text">Connecting...</span>
         </div>
+        <div class="status-badge indexing-badge-idle" id="indexing-badge" title="Grounding DINO Indexing Pipeline Status">
+          <span class="status-dot" id="indexing-dot" style="background-color: #38bdf8;"></span>
+          <span id="indexing-text">Grounding DINO: Ready</span>
+        </div>
         <div class="vram-badge" id="vram-text">GPU VRAM: -- / -- MB</div>
         <button class="nav-btn" id="btn-open-mobile" style="background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-weight: 600;">+ Live Mobile Cam</button>
         <button class="nav-btn" id="btn-open-poly">Polygon Drawer</button>
@@ -53,19 +57,27 @@
 
         <!-- Chat Input Bar -->
         <div class="input-container">
+          <div id="voice-status-bar" class="voice-status-bar" style="display: none;">
+            <span class="status-dot pulsing" style="background-color: #ef4444;"></span>
+            <span id="voice-status-text">Listening... Hold to talk, release to search</span>
+          </div>
           <form id="search-form" class="search-form">
+            <button type="button" id="btn-mic" class="mic-btn" title="Hold to Speak (Push-to-Talk)">
+              <span>🎙️</span>
+              <span id="mic-text">Hold to Talk</span>
+            </button>
             <input 
               type="text" 
               id="query-input" 
               class="query-input" 
-              placeholder="Search footage (e.g. 'a red car near cam_landscape', 'a person between 2 and 3 PM')..."
+              placeholder="Search footage or hold mic to speak..."
               autocomplete="off"
-              required
             >
             <button type="submit" id="search-btn" class="search-btn">
               <span>Search</span>
             </button>
           </form>
+          <audio id="voice-player" preload="none" style="display: none;"></audio>
         </div>
       </section>
 

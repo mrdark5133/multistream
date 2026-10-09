@@ -33,6 +33,27 @@ let knownCameras = [];
 let currentPolyPoints = [];
 let currentBgImage = new Image();
 let streamPollTimer = null;
+let indexingPollTimer = null;
+let previousIndexingState = 'idle';
+
+// Indexing Status Elements
+const indexingBadge = document.getElementById('indexing-badge');
+const indexingDot = document.getElementById('indexing-dot');
+const indexingText = document.getElementById('indexing-text');
+
+// Voice Push-to-Talk Elements
+const btnMic = document.getElementById('btn-mic');
+const micText = document.getElementById('mic-text');
+const voiceStatusBar = document.getElementById('voice-status-bar');
+const voiceStatusText = document.getElementById('voice-status-text');
+const voicePlayer = document.getElementById('voice-player');
+
+let audioContext = null;
+let mediaStream = null;
+let scriptProcessor = null;
+let audioChunks = [];
+let isRecording = false;
+let recordingStartTime = 0;
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -40,7 +61,9 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchCameras();
   setupEventListeners();
   checkStreamStatus();
+  checkIndexingStatus();
   streamPollTimer = setInterval(checkStreamStatus, 2000);
+  indexingPollTimer = setInterval(checkIndexingStatus, 2500);
 });
 
 function setupEventListeners() {
@@ -51,6 +74,33 @@ function setupEventListeners() {
       handleSearch(q);
     }
   });
+
+  // Push-to-talk microphone event listeners
+  if (btnMic) {
+    btnMic.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      startVoiceRecording();
+    });
+    btnMic.addEventListener('mouseup', (e) => {
+      e.preventDefault();
+      stopVoiceRecording(true);
+    });
+    btnMic.addEventListener('mouseleave', () => {
+      if (isRecording) {
+        stopVoiceRecording(true);
+      }
+    });
+
+    // Mobile / touch support
+    btnMic.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      startVoiceRecording();
+    });
+    btnMic.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      stopVoiceRecording(true);
+    });
+  }
 
   // Mobile modal events
   if (btnOpenMobile) {
@@ -185,6 +235,302 @@ async function handleSearch(queryText) {
     removeMessage(loadingMsgId);
     appendAssistantMessage(`Error executing search: ${err.message}`);
   }
+}
+
+// --- Voice Push-To-Talk Logic ---
+async function initVoiceAudio() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error('Microphone audio capture is not supported in this browser.');
+  }
+  if (!mediaStream) {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
+  }
+  if (!audioContext || audioContext.state === 'closed') {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    audioContext = new AudioCtx();
+  }
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+}
+
+async function startVoiceRecording() {
+  try {
+    await initVoiceAudio();
+    audioChunks = [];
+    isRecording = true;
+    recordingStartTime = Date.now();
+
+    const source = audioContext.createMediaStreamSource(mediaStream);
+    scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+    scriptProcessor.onaudioprocess = (e) => {
+      if (!isRecording) return;
+      const channelData = e.inputBuffer.getChannelData(0);
+      audioChunks.push(new Float32Array(channelData));
+    };
+
+    source.connect(scriptProcessor);
+    scriptProcessor.connect(audioContext.destination);
+
+    if (btnMic) {
+      btnMic.classList.add('recording');
+      if (micText) micText.textContent = 'Recording...';
+    }
+    if (voiceStatusBar) {
+      voiceStatusBar.style.display = 'flex';
+      if (voiceStatusText) voiceStatusText.textContent = 'Listening... Speak your query (release to send)';
+    }
+  } catch (err) {
+    console.error('Error starting audio recording:', err);
+    alert('Microphone access failed: ' + err.message);
+    stopVoiceRecording(false);
+  }
+}
+
+async function stopVoiceRecording(shouldSend = true) {
+  if (!isRecording) return;
+  isRecording = false;
+
+  if (btnMic) {
+    btnMic.classList.remove('recording');
+    if (micText) micText.textContent = 'Hold to Talk';
+  }
+
+  if (scriptProcessor) {
+    try {
+      scriptProcessor.disconnect();
+    } catch (e) {
+      console.warn('ScriptProcessor disconnect warning:', e);
+    }
+    scriptProcessor = null;
+  }
+
+  const duration = (Date.now() - recordingStartTime) / 1000;
+  if (!shouldSend || duration < 0.3 || audioChunks.length === 0) {
+    if (voiceStatusBar) voiceStatusBar.style.display = 'none';
+    return;
+  }
+
+  if (voiceStatusText) {
+    voiceStatusText.textContent = 'Transcribing with Whisper & searching...';
+  }
+
+  // Concatenate Float32Array chunks
+  let totalLength = 0;
+  for (const chunk of audioChunks) totalLength += chunk.length;
+  const mergedSamples = new Float32Array(totalLength);
+  let offset = 0;
+  for (const chunk of audioChunks) {
+    mergedSamples.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  // Downsample to 16 kHz
+  const sampleRate = audioContext.sampleRate;
+  const downsampled = downsampleBuffer(mergedSamples, sampleRate, 16000);
+  const wavBlob = encodeWAV(downsampled, 16000);
+
+  await sendVoiceQuery(wavBlob);
+}
+
+function downsampleBuffer(buffer, inputSampleRate, outputSampleRate = 16000) {
+  if (inputSampleRate === outputSampleRate) {
+    return buffer;
+  }
+  const sampleRateRatio = inputSampleRate / outputSampleRate;
+  const newLength = Math.round(buffer.length / sampleRateRatio);
+  const result = new Float32Array(newLength);
+  let offsetResult = 0;
+  let offsetBuffer = 0;
+  while (offsetResult < result.length) {
+    const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+    let accum = 0, count = 0;
+    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+      accum += buffer[i];
+      count++;
+    }
+    result[offsetResult] = count > 0 ? accum / count : 0;
+    offsetResult++;
+    offsetBuffer = nextOffsetBuffer;
+  }
+  return result;
+}
+
+function encodeWAV(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  }
+
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(view, 36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+async function sendVoiceQuery(wavBlob) {
+  const formData = new FormData();
+  formData.append('file', wavBlob, 'voice_query.wav');
+
+  try {
+    const res = await fetch('/voice', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (voiceStatusBar) voiceStatusBar.style.display = 'none';
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      appendAssistantMessage(`⚠️ Voice error: ${escapeHtml(err.detail || res.statusText)}`);
+      return;
+    }
+
+    const data = await res.json();
+    handleVoiceResponse(data);
+  } catch (err) {
+    if (voiceStatusBar) voiceStatusBar.style.display = 'none';
+    console.error('Failed to send voice query:', err);
+    appendAssistantMessage(`⚠️ Voice request failed: ${escapeHtml(err.message)}`);
+  }
+}
+
+function handleVoiceResponse(data) {
+  const transcript = data.transcript || '';
+  queryInput.value = transcript;
+
+  appendUserMessage(`🎙️ "${transcript}"`);
+
+  // Play audio response if provided
+  if (data.audio_url && voicePlayer) {
+    voicePlayer.src = data.audio_url;
+    voicePlayer.play().catch(e => console.warn('Audio auto-play blocked:', e));
+  }
+
+  const askRes = data.ask_response;
+  const timings = data.timings_ms || {};
+  const timingsBadge = `
+    <div class="voice-timings">
+      ASR: ${timings.asr || 0}ms | Search: ${timings.search || 0}ms | TTS: ${timings.tts || 0}ms | Total: ${timings.total || 0}ms
+    </div>
+  `;
+
+  if (!askRes) {
+    appendAssistantMessage(`
+      <p>${escapeHtml(data.spoken_text || '')}</p>
+      ${timingsBadge}
+    `);
+    return;
+  }
+
+  if (askRes.status === 'clarify') {
+    appendVoiceClarificationCard(transcript, askRes.referent, askRes.options, data.spoken_text, timingsBadge);
+  } else if (askRes.status === 'success') {
+    appendVoiceResultsCard(transcript, askRes.parsed, askRes.results, data.spoken_text, timingsBadge);
+  }
+}
+
+function appendVoiceClarificationCard(query, referent, options, spokenText, timingsBadge) {
+  const optionsHtml = (options || []).map(opt => `
+    <button class="cam-option-btn" onclick="resolveClarification('${escapeHtml(referent)}', '${escapeHtml(opt)}', '${escapeHtml(query)}')">
+      ${escapeHtml(opt)}
+    </button>
+  `).join('');
+
+  const html = `
+    <div class="clarify-card">
+      <div class="clarify-title">
+        <span>⚠️ Clarification Required</span>
+      </div>
+      <p>🔊 <em>"${escapeHtml(spokenText)}"</em></p>
+      <p style="margin-top: 8px; font-size: 13px; color: var(--text-muted);">
+        Which camera covers this location? Click a button or speak the camera name:
+      </p>
+      <div class="clarify-options">
+        ${optionsHtml}
+      </div>
+      ${timingsBadge}
+    </div>
+  `;
+  appendAssistantMessage(html);
+}
+
+function appendVoiceResultsCard(query, parsed, results, spokenText, timingsBadge) {
+  if (!results || results.length === 0) {
+    appendAssistantMessage(`
+      <p>🔊 <em>"${escapeHtml(spokenText)}"</em></p>
+      <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+        Object prompt: <code>${escapeHtml(parsed?.object_prompt || '')}</code> | Provider: ${parsed?.provider || 'fast'}
+      </div>
+      ${timingsBadge}
+    `);
+    return;
+  }
+
+  const resultsHtml = results.map((r) => `
+    <div class="result-card">
+      <div class="result-preview" id="preview-${r.id}">
+        <img src="${r.snapshot_url}" alt="Snapshot of ${r.label}" onerror="this.src='/static/placeholder.jpg'">
+      </div>
+      <div class="result-info">
+        <div>
+          <div class="result-meta">
+            <span class="meta-badge badge-score">Match: ${(r.score * 100).toFixed(1)}%</span>
+            <span class="meta-badge badge-cam">${escapeHtml(r.camera)}</span>
+            <span class="meta-badge">${escapeHtml(r.label)}</span>
+            ${r.color && r.color !== 'unknown' ? `<span class="meta-badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); font-weight: 600;">Color: ${escapeHtml(r.color)}</span>` : ''}
+            <span class="meta-badge">${formatTimestamp(r.timestamp)}</span>
+            <span class="meta-badge">Offset: ${r.offset_seconds.toFixed(2)}s</span>
+          </div>
+          <div style="font-size: 13px; color: var(--text-muted);">
+            Result ID: <code>${escapeHtml(r.id)}</code> (${r.type})
+          </div>
+        </div>
+        <button class="btn-play" onclick="playClip('${r.id}', '${r.clip_url}')">Play Video Clip</button>
+      </div>
+    </div>
+  `).join('');
+
+  const fullHtml = `
+    <div>
+      <div style="font-size: 14px; margin-bottom: 8px; color: var(--accent); font-weight: 500;">
+        🔊 <em>"${escapeHtml(spokenText)}"</em>
+      </div>
+      <div class="results-container">
+        ${resultsHtml}
+      </div>
+      ${timingsBadge}
+    </div>
+  `;
+  appendAssistantMessage(fullHtml);
 }
 
 // --- UI Message Helpers ---
@@ -555,13 +901,53 @@ async function handleStopStream() {
   try {
     const res = await fetch('/stream/stop', { method: 'POST' });
     if (res.ok) {
-      appendAssistantMessage(`&#9209; <strong>Live Stream Stopped</strong>. Captured tracks are stored in the database.`);
+      appendAssistantMessage(`&#9209; <strong>Live Mobile Capture Stopped</strong>.<br>The video has been saved to disk. <strong>Taking time now to run Grounding DINO</strong> to extract fine-grained objects (juice box, power bank, extension board, charger, speaker, laptop, monitor) into persistent storage.<br><br><span style="color: #fbbf24;">⏳ Look at the top header status: <strong>Grounding DINO Indexing</strong> will pulse while processing. Once it turns green, ask in chat to fetch your objects!</span>`);
       fetchCameras();
+      checkIndexingStatus();
     }
   } catch (err) {
     alert('Failed to stop stream: ' + err.message);
   } finally {
     btnStopStream.disabled = false;
     checkStreamStatus();
+  }
+}
+
+// --- Grounding-DINO Indexing Pipeline Status ---
+async function checkIndexingStatus() {
+  if (!indexingBadge || !indexingText || !indexingDot) return;
+  try {
+    const res = await fetch('/indexing/status');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'running') {
+        indexingBadge.className = 'status-badge indexing-badge-running';
+        indexingDot.className = 'status-dot pulsing';
+        indexingDot.style.backgroundColor = '#f59e0b';
+        indexingText.textContent = `⏳ Grounding DINO: Processing ${data.video || 'footage'}...`;
+        previousIndexingState = 'running';
+      } else if (data.status === 'completed') {
+        indexingBadge.className = 'status-badge indexing-badge-completed';
+        indexingDot.className = 'status-dot active';
+        indexingDot.style.backgroundColor = '#10b981';
+        indexingText.textContent = `✓ Grounding DINO: Ready to Fetch (${data.tracks_indexed || 0} objects)`;
+        if (previousIndexingState === 'running') {
+          appendAssistantMessage(`&#9989; <strong>Grounding DINO Indexing Complete!</strong><br>Indexed ${data.tracks_indexed || 0} desk objects into storage with high-precision bounding boxes. You can now fetch them anytime (e.g., <em>"where is the juice box?"</em> or <em>"where is the extension board?"</em>).`);
+          previousIndexingState = 'completed';
+        }
+      } else if (data.status === 'error') {
+        indexingBadge.className = 'status-badge indexing-badge-running';
+        indexingDot.className = 'status-dot';
+        indexingDot.style.backgroundColor = '#ef4444';
+        indexingText.textContent = `❌ Indexing Error`;
+      } else {
+        indexingBadge.className = 'status-badge indexing-badge-idle';
+        indexingDot.className = 'status-dot active';
+        indexingDot.style.backgroundColor = '#38bdf8';
+        indexingText.textContent = `Grounding DINO: Ready (${data.total_database_tracks || 0} tracks)`;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to get indexing status:', err);
   }
 }
