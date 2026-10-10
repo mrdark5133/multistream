@@ -33,9 +33,21 @@ class PiperTTS:
         self.use_cuda = use_cuda
 
         if not self.model_path.exists():
-            raise FileNotFoundError(f"Piper model not found at: {self.model_path}")
+            logger.info(f"[TTS] Model not found at {self.model_path}. Auto-downloading...")
+            self.model_path.parent.mkdir(parents=True, exist_ok=True)
+            import urllib.request
+            urllib.request.urlretrieve(
+                "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/low/en_US-lessac-low.onnx",
+                str(self.model_path)
+            )
         if not self.config_path.exists():
-            raise FileNotFoundError(f"Piper config not found at: {self.config_path}")
+            logger.info(f"[TTS] Config not found at {self.config_path}. Auto-downloading...")
+            self.config_path.parent.mkdir(parents=True, exist_ok=True)
+            import urllib.request
+            urllib.request.urlretrieve(
+                "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/low/en_US-lessac-low.onnx.json",
+                str(self.config_path)
+            )
 
         logger.info(f"[TTS] Loading PiperVoice from {self.model_path} on CPU...")
         self.voice = PiperVoice.load(
