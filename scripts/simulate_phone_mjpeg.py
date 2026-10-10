@@ -14,6 +14,7 @@ VIDEOS = {
     "cam1": Path("footage/test_video01.mp4"),
     "cam2": Path("footage/test_video02.mp4"),
     "cam3": Path("footage/traffic_video.mp4"),
+    "cam4": Path("footage/test_video03.mp4"),
 }
 
 class InMemoryStreamer:
@@ -83,6 +84,8 @@ class MJPEGHandler(BaseHTTPRequestHandler):
             key = "cam2"
         elif "cam3" in path or port == 8083:
             key = "cam3"
+        elif "cam4" in path or port == 8084:
+            key = "cam4"
         elif "cam1" in path or port == 8081:
             key = "cam1"
 
@@ -115,16 +118,19 @@ if __name__ == "__main__":
     get_streamer("cam1")
     get_streamer("cam2")
     get_streamer("cam3")
+    get_streamer("cam4")
     
     t1 = threading.Thread(target=run_server, args=(8081,), daemon=True)
     t2 = threading.Thread(target=run_server, args=(8082,), daemon=True)
     t3 = threading.Thread(target=run_server, args=(8083,), daemon=True)
+    t4 = threading.Thread(target=run_server, args=(8084,), daemon=True)
     
     t1.start()
     t2.start()
     t3.start()
+    t4.start()
     
-    print("[SIMULATOR] Ports 8081, 8082, 8083 online.")
+    print("[SIMULATOR] Ports 8081, 8082, 8083, 8084 online.")
     try:
         while True:
             time.sleep(1)

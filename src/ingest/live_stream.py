@@ -477,8 +477,11 @@ class CameraStreamReceiver:
     def stop(self):
         """Stop the stream receiver thread and finalize recordings."""
         self.running = False
+        with self.lock:
+            self.latest_raw_frame = None
+            self.latest_jpeg = None
         if self.thread and self.thread.is_alive():
-            self.thread.join(timeout=3.0)
+            self.thread.join(timeout=1.0)
         self.status = "stopped"
         logger.info(f"[RECEIVER:{self.camera_name}] Stopped ingest")
 
@@ -508,13 +511,20 @@ class CameraStreamReceiver:
                     candidate_urls.append(f"{clean_base}{ep}")
 
         for cand in candidate_urls:
-            logger.info(f"[RECEIVER:{self.camera_name}] Trying capture URL: {cand}")
-            cap = cv2.VideoCapture(cand)
-            if cap.isOpened():
-                ret, _ = cap.read()
-                if ret:
-                    return cap
-            cap.release()
+            try:
+                cap = cv2.VideoCapture(cand)
+                try:
+                    cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 2500)
+                    cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 2500)
+                except Exception:
+                    pass
+                if cap.isOpened():
+                    ret, _ = cap.read()
+                    if ret:
+                        return cap
+                cap.release()
+            except Exception:
+                pass
         return None
 
     def _run_receiver(self):
@@ -547,6 +557,15 @@ class CameraStreamReceiver:
 
         try:
             while self.running:
+                if cap is None:
+                    cap = self._open_capture()
+                    if cap is None:
+                        self.status = "reconnecting"
+                        time.sleep(1.0)
+                        continue
+                    self.status = "running"
+                    last_frame_time = time.time()
+
                 ret, frame = cap.read()
                 now = time.time()
 
@@ -565,12 +584,19 @@ class CameraStreamReceiver:
                         if len(self.errors) > 10:
                             self.errors = self.errors[-10:]
                         self.reconnect_count += 1
-                        cap.release()
+                        if cap:
+                            try:
+                                cap.release()
+                            except Exception:
+                                pass
+                            cap = None
+                        self.status = "reconnecting"
                         time.sleep(1.0)
                         cap = self._open_capture()
                         if cap is None:
                             time.sleep(1.0)
                             continue
+                        self.status = "running"
                         last_frame_time = time.time()
                     else:
                         time.sleep(0.01)
@@ -588,14 +614,27 @@ class CameraStreamReceiver:
                             self.writer.write(frame)
                         except Exception:
                             pass
+        except Exception as e:
+            logger.error(f"[RECEIVER:{self.camera_name}] Worker encountered error: {e}")
+            self.errors.append(f"Worker error: {e}")
         finally:
-            if cap:
-                cap.release()
-            if self.writer:
-                self.writer.release()
-            if self.rec_path and self.rec_path.exists() and self.rec_path.stat().st_size > 0:
-                convert_to_h264(self.rec_path)
+            self.running = False
             self.status = "stopped"
+            with self.lock:
+                self.latest_raw_frame = None
+                self.latest_jpeg = None
+            if cap:
+                try:
+                    cap.release()
+                except Exception:
+                    pass
+            if self.writer:
+                try:
+                    self.writer.release()
+                except Exception:
+                    pass
+            if self.rec_path and self.rec_path.exists() and self.rec_path.stat().st_size > 0:
+                threading.Thread(target=convert_to_h264, args=(self.rec_path,), daemon=True).start()
 
     def record_processed(
         self,
