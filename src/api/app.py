@@ -4,10 +4,11 @@ import json
 import sqlite3
 import datetime
 import subprocess
+import asyncio
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, status, BackgroundTasks
+from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException, Query, status, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -86,6 +87,16 @@ def serve_root():
     if index_html.exists():
         return FileResponse(index_html, media_type="text/html")
     return {"message": "MULTIStream API is active. UI not found in static/index.html"}
+
+
+@app.get("/live")
+def serve_live_view():
+    """Serve the multi-camera live video screen monitor."""
+    live_html = STATIC_DIR / "live.html"
+    if live_html.exists():
+        return FileResponse(live_html, media_type="text/html")
+    return {"message": "MULTIStream API is active. UI not found in static/live.html"}
+
 
 
 from src.voice.asr import WhisperASR, decode_audio_bytes, resample_to_16k
@@ -622,7 +633,7 @@ class StreamStartRequest(BaseModel):
 
 class StreamStopRequest(BaseModel):
     camera: Optional[str] = Field(None, description="Camera name identifier to stop")
-    auto_ingest: bool = Field(False, description="Whether to trigger offline Grounding-DINO indexing")
+    auto_ingest: bool = Field(True, description="Whether to trigger offline Grounding-DINO indexing")
 
 
 _stream_manager: Optional[LiveStreamManager] = None
@@ -729,6 +740,17 @@ def run_post_stream_ingest(rec_rel_path: str, camera_name: str):
         _indexing_status["tracks_indexed"] = tracks_count
         _indexing_status["message"] = f"Grounding DINO finished: {tracks_count} objects indexed & ready to fetch!"
         _indexing_status["completed_at"] = datetime.datetime.now().isoformat()
+        
+        # Clean up detector VRAM immediately
+        del detector
+        del pipeline
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+
         engine = get_search_engine()
         engine.reload_parser()
     except Exception as e:
@@ -746,7 +768,7 @@ def stop_live_stream(
     req: Optional[StreamStopRequest] = None,
     camera: Optional[str] = None
 ):
-    """Stop active stream for specified camera and optionally trigger Grounding-DINO indexing."""
+    """Stop active stream for specified camera and automatically trigger Grounding-DINO indexing."""
     manager = get_stream_manager()
     target_camera = None
     if req and req.camera:
@@ -762,7 +784,8 @@ def stop_live_stream(
 
     res = manager.stop_stream(target_camera)
     rec_file = res.get("stats", {}).get("recorded_file")
-    if req and req.auto_ingest and rec_file and background_tasks:
+    should_ingest = True if req is None else (req.auto_ingest is not False)
+    if should_ingest and rec_file and background_tasks:
         background_tasks.add_task(run_post_stream_ingest, rec_file, target_camera)
         res["auto_ingest"] = "started"
     return res
@@ -794,33 +817,45 @@ def get_live_stream_status():
 
 
 @app.get("/stream/feed")
-def stream_feed(camera: Optional[str] = None):
+async def stream_feed(request: Request, camera: Optional[str] = None):
     """
     Serve live multipart MJPEG video feed showing camera view and real-time bounding boxes.
+    Terminates cleanly when camera is stopped or client disconnects.
     """
-    import time
     manager = get_stream_manager()
 
-    def frame_generator():
-        while True:
-            target = None
-            if camera and camera in manager.cameras:
-                target = manager.cameras[camera]
-            else:
-                running_cams = [r for r in manager.cameras.values() if r.running]
-                if running_cams:
-                    target = running_cams[0]
-            if target and getattr(target, "latest_jpeg", None) is not None:
-                yield (
-                    b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n" + target.latest_jpeg + b"\r\n"
-                )
-            time.sleep(0.04)
+    async def frame_generator():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                target = None
+                if camera and camera in manager.cameras:
+                    target = manager.cameras[camera]
+                else:
+                    running_cams = [r for r in manager.cameras.values() if r.running]
+                    if running_cams:
+                        target = running_cams[0]
+
+                if not target or not target.running:
+                    # Stream stopped, cleanly terminate generator to release HTTP connection
+                    break
+
+                jpeg = getattr(target, "latest_jpeg", None)
+                if jpeg is not None:
+                    yield (
+                        b"--frame\r\n"
+                        b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
+                    )
+                await asyncio.sleep(0.04)
+        except (asyncio.CancelledError, GeneratorExit, Exception):
+            pass
 
     return StreamingResponse(
         frame_generator(),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
+
 
 
 # Mount static assets

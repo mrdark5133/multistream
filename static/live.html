@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MULTIStream - Live Multi-Camera Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="live-page-layout">
+  <!-- Top Symmetric Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="logo-icon">MS</div>
+      <div>
+        <h1 class="logo-title">MULTIStream</h1>
+        <p class="logo-sub">Live Multi-Camera Monitor</p>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="status-badge" id="health-badge">
+        <span class="status-indicator active" id="health-indicator"></span>
+        <span id="health-text">Online</span>
+      </div>
+      <div class="status-badge" id="streams-count-badge">
+        <span class="status-indicator active" id="streams-indicator"></span>
+        <span id="streams-count-text">0 Streams Active</span>
+      </div>
+      <div class="vram-badge" id="vram-text">VRAM: -- / -- MB</div>
+      <a href="/" id="btn-nav-search" class="nav-btn" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">Search Console</a>
+      <button class="nav-btn nav-btn-highlight" id="btn-toggle-drawer">+ Connect Camera</button>
+      <button class="nav-btn" id="btn-stop-all">Stop All</button>
+    </div>
+  </header>
+
+  <!-- Connect Camera Drawer Panel -->
+  <section class="live-drawer hidden" id="connect-drawer">
+    <div class="drawer-row">
+      <div class="drawer-input-group" style="width: 160px;">
+        <label class="drawer-label">Camera Identifier</label>
+        <input type="text" id="drawer-cam-name" class="drawer-input" placeholder="mobile_cam01" value="mobile_cam01">
+      </div>
+      <div class="drawer-input-group" style="flex: 1; min-width: 280px;">
+        <label class="drawer-label">Stream Source URL (IP Webcam / RTSP / Simulated)</label>
+        <input type="text" id="drawer-cam-url" class="drawer-input" placeholder="http://192.168.1.105:8080/video">
+      </div>
+      <div class="drawer-input-group" style="align-self: flex-end;">
+        <button id="btn-submit-stream" class="btn-primary" style="height: 32px; padding: 0 16px;">
+          + Connect Stream
+        </button>
+      </div>
+    </div>
+    <div class="drawer-row" style="margin-top: 4px;">
+      <span class="drawer-label" style="margin-right: 4px;">Quick Presets:</span>
+      <button type="button" class="box-pill-btn" onclick="fillPreset('mobile_cam01', 'http://127.0.0.1:8081')">Phone 1 (8081)</button>
+      <button type="button" class="box-pill-btn" onclick="fillPreset('mobile_cam02', 'http://127.0.0.1:8082')">Phone 2 (8082)</button>
+      <button type="button" class="box-pill-btn" onclick="fillPreset('mobile_cam03', 'http://127.0.0.1:8083')">Phone 3 (8083)</button>
+      <button type="button" class="box-pill-btn" onclick="fillPreset('mobile_cam04', 'http://127.0.0.1:8084')">Phone 4 (8084)</button>
+      <button type="button" class="btn-secondary" id="btn-launch-quad" style="height: 24px; padding: 0 10px; font-size: 10px; font-family: var(--font-mono);">
+        [1-Click] Launch 4-Phone Quad Ingest
+      </button>
+    </div>
+  </section>
+
+  <!-- Live Grid Control Toolbar -->
+  <div class="live-toolbar">
+    <div class="live-toolbar-left">
+      <span class="toolbar-stat" id="stat-active-summary">
+        Streams: <b>0</b> Active
+      </span>
+      <span style="color: var(--border-muted);">|</span>
+      <span class="toolbar-stat" id="stat-global-fps">
+        Total FPS: <b>0.0</b>
+      </span>
+      <span style="color: var(--border-muted);">|</span>
+      <span class="toolbar-stat" id="stat-avg-lag">
+        Avg Lag: <b>0.00s</b>
+      </span>
+    </div>
+    <div class="live-toolbar-right">
+      <span class="toolbar-stat" style="font-size: 10px;">Grid Layout:</span>
+      <div class="view-mode-group">
+        <button class="view-mode-btn" id="btn-mode-auto" onclick="setGridMode('grid-auto')">Auto</button>
+        <button class="view-mode-btn active" id="btn-mode-2x2" onclick="setGridMode('grid-2x2')">2x2 Quad</button>
+        <button class="view-mode-btn" id="btn-mode-3x3" onclick="setGridMode('grid-3x3')">3x3 Wall</button>
+        <button class="view-mode-btn" id="btn-mode-1x1" onclick="setGridMode('grid-1x1')">1x1 Focus</button>
+      </div>
+      <button class="box-pill-btn" id="btn-refresh-streams" onclick="refreshStreams(true)">Sync Feeds</button>
+    </div>
+  </div>
+
+  <!-- Main Viewport Scroll Area -->
+  <main class="live-viewport" id="live-viewport">
+    <!-- Focus Mode Camera Selector Bar (Visible only in 1x1 mode) -->
+    <div class="focus-tab-bar" id="focus-tab-bar" style="display: none;"></div>
+
+    <!-- Active Multi-Camera Live Screens Grid -->
+    <div class="live-grid grid-2x2" id="live-grid">
+      <!-- Empty State Card -->
+      <div class="live-empty-card" id="empty-state-card">
+        <div class="live-empty-title">No Live Camera Feeds Connected</div>
+        <div class="live-empty-desc">
+          Connect your mobile devices running IP Webcam or RTSP streaming apps to view all live screens simultaneously.
+          Isolated tracker states, GPU-shared YOLO detections, and latest-frame drop queues will process each feed in real time.
+        </div>
+        <div class="live-empty-actions">
+          <button class="btn-primary" onclick="toggleDrawer(true)">+ Connect Phone Camera</button>
+          <button class="btn-secondary" id="btn-empty-launch-quad">Launch 4-Phone Quad Ingest (Demo)</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/live.js"></script>
+</body>
+</html>

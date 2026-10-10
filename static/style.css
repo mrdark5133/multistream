@@ -152,6 +152,10 @@ html, body {
 }
 
 .nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
@@ -731,3 +735,455 @@ html, body {
   color: var(--text-main);
   pointer-events: none;
 }
+
+/* ==========================================================================
+   Multi-Camera Live Screen Monitor Page
+   Clean minimalistic boxy design system (white background, symmetric, zero pill shapes)
+   ========================================================================== */
+
+.live-page-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background-color: var(--bg-main);
+  overflow: hidden;
+}
+
+.live-toolbar {
+  height: 48px;
+  background-color: var(--bg-alt);
+  border-bottom: 1px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+
+.live-toolbar-left,
+.live-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar-stat {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.toolbar-stat b {
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.view-mode-group {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-main);
+}
+
+.view-mode-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  background: var(--bg-main);
+  color: var(--text-muted);
+  border: none;
+  border-right: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.view-mode-btn:last-child {
+  border-right: none;
+}
+
+.view-mode-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--text-main);
+}
+
+.view-mode-btn.active {
+  background: var(--accent);
+  color: var(--accent-inverse);
+}
+
+/* Connect Drawer Panel */
+.live-drawer {
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-strong);
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  transition: max-height 0.2s ease;
+}
+
+.live-drawer.hidden {
+  display: none;
+}
+
+.drawer-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.drawer-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drawer-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.drawer-input {
+  height: 32px;
+  padding: 0 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-main);
+  color: var(--text-main);
+  outline: none;
+}
+
+.drawer-input:focus {
+  border-color: var(--accent);
+}
+
+/* Main Live Viewport Scroll Area */
+.live-viewport {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+  background-color: var(--bg-main);
+}
+
+/* Live Grid Arrangements */
+.live-grid {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+}
+
+.live-grid.grid-auto {
+  grid-template-columns: repeat(auto-fill, minmax(460px, 1fr));
+}
+
+.live-grid.grid-2x2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.live-grid.grid-3x3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.live-grid.grid-1x1 {
+  grid-template-columns: 1fr;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Camera Screen Card */
+.camera-card {
+  background: var(--bg-main);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.15s ease;
+}
+
+.camera-card:hover {
+  border-color: var(--accent);
+}
+
+.camera-card-header {
+  height: 38px;
+  padding: 0 12px;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.camera-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.camera-id-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-main);
+}
+
+.camera-status-pill {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  text-transform: uppercase;
+  background: var(--accent);
+  color: var(--accent-inverse);
+}
+
+.camera-status-pill.stopped {
+  background: #71717a;
+}
+
+.camera-status-pill.connecting {
+  background: #d97706;
+}
+
+.camera-header-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.stat-item {
+  color: var(--text-muted);
+}
+
+.stat-item b {
+  color: var(--text-main);
+}
+
+/* Video Monitor Screen */
+.camera-screen-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-color: #000000;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-live-feed {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.camera-screen-overlay-top {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.rec-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #ef4444;
+  letter-spacing: 0.5px;
+}
+
+.rec-dot {
+  width: 7px;
+  height: 7px;
+  background-color: #ef4444;
+  animation: pulse-dot 1.2s infinite ease-in-out;
+}
+
+.screen-timestamp {
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #ffffff;
+}
+
+.camera-screen-actions {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 5;
+}
+
+.camera-card:hover .camera-screen-actions {
+  opacity: 1;
+}
+
+.screen-action-btn {
+  background: var(--bg-main);
+  border: 1px solid var(--border-strong);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.screen-action-btn:hover {
+  background: var(--accent);
+  color: var(--accent-inverse);
+}
+
+/* Card Telemetry Strip */
+.camera-card-telemetry {
+  padding: 8px 12px;
+  background: var(--bg-subtle);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.telemetry-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.telemetry-label {
+  color: var(--text-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.telemetry-value {
+  color: var(--text-main);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Card Footer Controls */
+.camera-card-footer {
+  height: 36px;
+  padding: 0 12px;
+  background: var(--bg-alt);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.footer-source-url {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.footer-btn-group {
+  display: flex;
+  gap: 6px;
+}
+
+/* Empty State Box */
+.live-empty-card {
+  background: var(--bg-main);
+  border: 1px solid var(--border-strong);
+  padding: 48px 32px;
+  text-align: center;
+  max-width: 680px;
+  margin: 40px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.live-empty-title {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.live-empty-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  max-width: 520px;
+}
+
+.live-empty-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Focus Mode Tab Bar */
+.focus-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0;
+  overflow-x: auto;
+  margin-bottom: 12px;
+}
+
+.focus-tab-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-strong);
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.focus-tab-btn.active {
+  background: var(--accent);
+  color: var(--accent-inverse);
+}
+
